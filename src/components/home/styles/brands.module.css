@@ -1,0 +1,76 @@
+.logos {
+    overflow: hidden;
+    padding: 60px 0;
+    background: rgb(77, 177, 153);
+    background: linear-gradient(
+      90deg,
+      rgba(77, 177, 153, 1) 0%,
+      rgba(80, 196, 169, 1) 100%
+    );
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .logos:before,
+  .logos:after {
+    position: absolute;
+    top: 0;
+    width: 150px;
+    height: 100%;
+    content: "";
+    z-index: 2;
+    pointer-events: none;
+  }
+  
+  .logos:before {
+    left: 0;
+  }
+  
+  .logos:after {
+    right: 0;
+  }
+  
+  .logos:hover .logosSlide {
+    animation-play-state: paused;
+  }
+  
+  .logosSlide {
+    display: flex;
+    animation: 45s slide infinite linear;
+  }
+  
+  .logosSlide img {
+    height: 60px;
+    margin: 0 50px;
+    transition: transform 0.3s ease;
+  }
+  
+  .logosSlide img:hover {
+    transform: scale(1.1);
+  }
+  
+  @keyframes slide {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .logosSlide img {
+      height: 50px;
+      margin: 0 30px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .logosSlide img {
+      height: 40px;
+      margin: 0 20px;
+    }
+  }
+  

@@ -1,0 +1,25 @@
+/* Default (mobile) */
+.carousel {
+    flex: 0 0 95%; 
+    scroll-snap-align: start;
+  }
+  
+  /* Tablet view */
+  @media (min-width: 768px) {
+    .carousel {
+      flex: 0 0 46%; 
+    }
+  }
+  
+  /* Laptop and larger screens */
+  @media (min-width: 1024px) {
+    .carousel {
+      flex: 0 0 46%; 
+    }
+  }
+  
+  @media (min-width: 1920px){
+    .carousel{
+      flex: 0 0 31%;
+    }
+  }

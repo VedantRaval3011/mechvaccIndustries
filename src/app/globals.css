@@ -1,24 +1,222 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Custom global styles */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-green-bg: #F2F8F6;
+  --color-gray-bg: #f2f8f6;
+  --color-green-gradient-start: #4EB49C;
+  --color-green-gradient-end: #0b946d;
+  --color-green: #0DAC9A;
+  --color-white: #FFFFFF;
+  --color-black: #000000;
+  --color-large-green-gradient-start: #4DB199;
+  --color-large-green-gradient-end: #50C4A9;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+.bg-green-gradient {
+  background: linear-gradient(90deg, var(--color-green-gradient-start) 0%, var(--color-green-gradient-end) 100%);
+}
+
+.bg-large-green-gradient {
+  background: linear-gradient(90deg, var(--color-large-green-gradient-start) 0%, var(--color-large-green-gradient-end) 100%);
+}
+
+/* Custom screen sizes */
+@media (min-width: 1920px) {
+  .container {
+    max-width: 1600px;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@media (min-width: 2560px) {
+  .container {
+    max-width: 2200px;
+  }
 }
+
+@media (min-width: 3840px) {
+  .container {
+    max-width: 3000px;
+  }
+}
+
+
+.step-tracker {
+  position: relative;
+  overflow: hidden;
+  padding: 20px 0; /* Extra padding for wave effect */
+}
+
+.steps-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  width: 33.33%;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  background-color: #e5e7eb; /* gray-200 */
+  color: #6b7280; /* gray-500 */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.5s ease;
+  z-index: 2;
+}
+
+.step.active .step-number {
+  background-color: var(--color-green);
+  color: white;
+  transform: scale(1.1); /* Slight bounce effect for active step */
+}
+
+.step-label {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #6b7280; /* gray-500 */
+  transition: color 0.3s ease;
+}
+
+.step.active .step-label {
+  color: var(--color-green);
+}
+
+/* Base waterbed (static background) */
+.steps-container::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 100%;
+  height: 20px; /* Taller for a deeper water effect */
+  background: linear-gradient(to bottom, #e5e7eb, #d1d5db); /* gray-200 to gray-300 */
+  border-radius: 10px;
+  z-index: 0;
+}
+
+/* Water flow layer 1: Main flow */
+.steps-container::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 0;
+  height: 20px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 197, 94, 0.3) 20%, /* Light green */
+    var(--color-green) 50%,
+    rgba(34, 197, 94, 0.3) 80%,
+    transparent 100%
+  );
+  background-size: 300% 100%;
+  animation: waterFlowMain 3s infinite ease-in-out;
+  z-index: 1;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+/* Water flow layer 2: Wave shimmer */
+.steps-container .water-shimmer {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 0;
+  height: 20px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #0b946d7c, /* White shimmer */
+    transparent
+  );
+  background-size: 150% 100%;
+  z-index: 2;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+/* Dynamic width based on active step */
+.step-tracker:has(.step:nth-child(1).active)::after,
+.step-tracker:has(.step:nth-child(1).active) .water-shimmer {
+  width: 33.33%;
+}
+
+.step-tracker:has(.step:nth-child(2).active)::after,
+.step-tracker:has(.step:nth-child(2).active) .water-shimmer {
+  width: 66.66%;
+}
+
+.step-tracker:has(.step:nth-child(3).active)::after,
+.step-tracker:has(.step:nth-child(3).active) .water-shimmer {
+  width: 100%;
+}
+
+/* Water flow animation */
+@keyframes waterFlowMain {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 0%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* Shimmer animation for wave effect */
+@keyframes waterShimmer {
+  0% {
+    background-position: -50% 0%;
+  }
+  100% {
+    background-position: 150% 0%;
+  }
+}
+
+/* Optional: Subtle wave distortion using filter (modern browsers) */
+.steps-container::after {
+  filter: url(#waveFilter); /* Requires SVG filter below */
+}
+
+/* SVG filter for wave-like distortion */
+svg.wave-filter {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+@keyframes glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .animate-glow {
+    animation: glow 2s infinite;
+  }
+
+  @keyframes text-glitch {
+    0%, 100% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(2px, -2px); }
+    60% { transform: translate(-2px, -2px); }
+    80% { transform: translate(2px, 2px); }
+  }
+  .animate-text-glitch {
+    animation: text-glitch 3s infinite;
+  }
