@@ -15,6 +15,8 @@ export interface Specification {
     displayTitle: string;
     group: string;
     price: number;
+    priceLabel?: string;
+    description?: string;
     displayImage: string;
     additionalImages: string[];
     video?: string;

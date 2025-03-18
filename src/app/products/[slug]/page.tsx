@@ -1,3 +1,4 @@
+// app/products/[slug]/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -21,7 +22,7 @@ import { use } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
 interface ExtendedProduct extends Product {
-  id: string;
+  _id: string;
   slug: string;
 }
 
@@ -31,9 +32,17 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeImage, setActiveImage] = useState<string>("");
   const [isShareMenuOpen, setIsShareMenuOpen] = useState<boolean>(false);
-  const shareMenuRef = useRef<HTMLDivElement>(null);
   const [isInterestingLoading, setIsInterestingLoading] = useState<boolean>(false);
-
+  const [showInterestForm, setShowInterestForm] = useState<boolean>(false);
+  const [queryValues, setQueryValues] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showThankYou, setShowThankYou] = useState<boolean>(false);
+  const [defaultQueries] = useState([
+    { title: 'Name', type: 'string' },
+    { title: 'Phone Number', type: 'string' },
+  ]);
+  
+  const shareMenuRef = useRef<HTMLDivElement>(null);
   const resolvedParams = use(params);
   const slug = resolvedParams.slug;
 
@@ -61,7 +70,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     try {
       const res = await fetch(`/api/products?featured=true&limit=4`);
       if (!res.ok) throw new Error("Failed to fetch interesting products");
-      
       const data = await res.json();
       const productsArray = Array.isArray(data) ? data : [];
       setInterestingProducts(productsArray.slice(0, 4) as ExtendedProduct[]);
@@ -78,11 +86,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         setIsShareMenuOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const copyLinkToClipboard = () => {
@@ -94,48 +99,94 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
 
   const shareViaEmail = () => {
     if (!product) return;
-    
     const subject = encodeURIComponent(`Check out this product: ${product.displayTitle}`);
     const body = encodeURIComponent(
-      `I found this amazing product and thought you might be interested:\n\n` +
-      `${product.displayTitle}\n\n` +
-      `${window.location.href}\n\n` +
-      `Price: $${product.price}\n\n` +
-      `${product.name}`
+      `I found this amazing product:\n\n${product.displayTitle}\n\n${window.location.href}\n\nPrice: ₹${product.price}\n\n${product.name}`
     );
-    
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
     setIsShareMenuOpen(false);
   };
 
   const shareToSocialMedia = (platform: "facebook" | "whatsapp") => {
     if (!product) return;
-    
     const url = encodeURIComponent(window.location.href);
     const title = encodeURIComponent(`Check out this product: ${product.displayTitle}`);
-    
     let shareUrl = "";
-    
     switch (platform) {
       case "facebook":
         shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
         break;
-     
       case "whatsapp":
         shareUrl = `https://api.whatsapp.com/send?text=${title}%20${url}`;
         break;
     }
-    
-    if (shareUrl) {
-      window.open(shareUrl, "_blank");
-    }
-    
+    if (shareUrl) window.open(shareUrl, "_blank");
     setIsShareMenuOpen(false);
+  };
+
+  const handleQueryChange = (queryTitle: string, value: string) => {
+    setQueryValues(prev => ({
+      ...prev,
+      [queryTitle]: value,
+    }));
+  };
+
+  const submitInterest = async () => {
+    if (!product) return;
+    
+    try {
+      setIsSubmitting(true);
+      // Filter out duplicates by creating a Map and converting back to array
+      const allQueries = [...defaultQueries, ...(product.queries || [])];
+      const uniqueQueries = Array.from(
+        new Map(allQueries.map(query => [query.title, query])).values()
+      );
+      const queriesWithValues = uniqueQueries.map(query => ({
+        ...query,
+        value: queryValues[query.title] || '',
+      }));
+
+      const updateResponse = await fetch(`/api/products/step3/${product._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queries: queriesWithValues }),
+      });
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        throw new Error(errorData.error || 'Failed to update product queries');
+      }
+
+      const emailResponse = await fetch('/api/send-interest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product._id,
+          productTitle: product.displayTitle,
+          userQueries: queriesWithValues,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        throw new Error(errorData.error || 'Failed to send email');
+      }
+
+      setShowInterestForm(false);
+      setShowThankYou(true);
+      setQueryValues({});
+      setTimeout(() => setShowThankYou(false), 5000);
+    } catch (error) {
+      console.error('Error submitting interest:', error);
+      toast.error('Failed to submit interest. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-gray-bg)] text-[var(--color-black)]">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-gray-bg)]">
         <motion.div 
           className="relative w-16 h-16"
           animate={{ rotate: 360 }}
@@ -182,7 +233,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   }
 
   const pageTitle = `${product.displayTitle} - ${product.group || "Product"}`;
-  const metaDescription = `${product.name} - High-quality ${product.group || "product"} priced at $${product.price || "N/A"}. Explore specs and more!`;
+  const metaDescription = `${product.description} - High-quality ${product.group || "product"} priced at $${product.price || "N/A"}.`;
   const canonicalUrl = `https://yourdomain.com/products/${slug}`;
   const keywords = product.seoKeywords || `${product.displayTitle}, ${product.group}, buy online`;
 
@@ -239,17 +290,24 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="p-6">
+                {/* Main product image - updated for better quality */}
                 <motion.div
-                  className="relative h-96 rounded-xl overflow-hidden bg-gray-100"
+                  className="relative rounded-xl overflow-hidden bg-gray-100"
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.3 }}
+                  style={{ width: '100%', height: '500px' }}
                 >
                   <Image
                     src={activeImage || "/no-image-placeholder.png"}
                     alt={product.displayTitle}
-                    layout="fill"
-                    objectFit="cover"
-                    className="transition-all duration-300"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    priority
+                    style={{ 
+                      objectFit: 'contain',
+                      backgroundColor: '#f9f9f9'
+                    }}
+                    quality={100}
                   />
                   {product.price && (
                     <motion.div 
@@ -258,28 +316,32 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.2 }}
                     >
-                      ${product.price}
+                      ${product.price}{product.priceLabel ? ` (${product.priceLabel})` : ""}
                     </motion.div>
                   )}
                 </motion.div>
 
+                {/* Thumbnail images - updated for consistency */}
                 {product.additionalImages && product.additionalImages.length > 0 && (
-                  <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+                  <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
                     {[product.displayImage, ...product.additionalImages].map((img, index) => (
                       <motion.div
                         key={index}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setActiveImage(img)}
-                        className={`relative h-20 w-20 rounded-lg overflow-hidden cursor-pointer ${
+                        className={`relative cursor-pointer rounded-lg overflow-hidden ${
                           activeImage === img ? "ring-2 ring-[var(--color-green)]" : ""
                         }`}
+                        style={{ width: '80px', height: '80px', flexShrink: 0 }}
                       >
                         <Image
                           src={img}
                           alt={`Thumbnail ${index}`}
-                          layout="fill"
-                          objectFit="cover"
+                          fill
+                          sizes="80px"
+                          style={{ objectFit: 'cover' }}
+                          quality={80}
                         />
                       </motion.div>
                     ))}
@@ -293,53 +355,49 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                     <p className="text-sm font-medium text-[var(--color-green)] mb-2">
                       {product.group || "Uncategorized"}
                     </p>
-                    
                     <div className="relative" ref={shareMenuRef}>
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setIsShareMenuOpen(!isShareMenuOpen)}
-                        className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-all"
+                        className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
                       >
                         <Share2 className="h-4 w-4" />
                         <span className="text-sm">Share</span>
                       </motion.button>
-                      
                       <AnimatePresence>
                         {isShareMenuOpen && (
                           <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                            transition={{ duration: 0.2 }}
                             className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg z-50 overflow-hidden"
                           >
                             <div className="p-2">
                               <button
                                 onClick={copyLinkToClipboard}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                               >
                                 <Copy className="h-4 w-4" />
                                 Copy Link
                               </button>
                               <button
                                 onClick={shareViaEmail}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                               >
                                 <Mail className="h-4 w-4" />
                                 Email
                               </button>
                               <button
                                 onClick={() => shareToSocialMedia("facebook")}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                               >
                                 <Facebook className="h-4 w-4" />
                                 Facebook
                               </button>
-                             
                               <button
                                 onClick={() => shareToSocialMedia("whatsapp")}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                               >
                                 <Send className="h-4 w-4" />
                                 WhatsApp
@@ -359,6 +417,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                     <span className="text-gray-600">Premium Product</span>
                   </div>
                   <p className="text-gray-600 mb-6">{product.name}</p>
+                  {product.description && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold text-[var(--color-black)] mb-2">
+                        Description
+                      </h3>
+                      <p className="text-gray-600">{product.description}</p>
+                    </div>
+                  )}
 
                   {product.specifications && Array.isArray(product.specifications) && product.specifications.length > 0 && (
                     <div className="mb-6">
@@ -392,38 +458,117 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                   )}
                 </div>
 
-                <div className="flex gap-4 flex-wrap">
-                  {product.video && (
-                    <motion.a
+                <div className="space-y-4">
+                  <div className="flex gap-4 flex-wrap">
+                    {product.video && (
+                      <motion.a
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        href={product.video}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200"
+                      >
+                        <Play className="h-5 w-5" />
+                        Watch Video
+                      </motion.a>
+                    )}
+                    {product.pdf && (
+                      <motion.a
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        href={product.pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200"
+                      >
+                        <Download className="h-5 w-5" />
+                        Download PDF
+                      </motion.a>
+                    )}
+                    <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      href={product.video}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200 transition-all"
+                      onClick={() => setShowInterestForm(true)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-green)] text-white rounded-xl font-medium hover:bg-green-600"
                     >
-                      <Play className="h-5 w-5" />
-                      Watch Video
-                    </motion.a>
-                  )}
-                  {product.pdf && (
-                    <motion.a
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      href={product.pdf}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200 transition-all"
-                    >
-                      <Download className="h-5 w-5" />
-                      Download PDF
-                    </motion.a>
-                  )}
+                      I&apos;m Interested
+                    </motion.button>
+                  </div>
+
+                  <AnimatePresence>
+                    {showInterestForm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="p-4 bg-gray-50 rounded-xl relative"
+                      >
+                        {Array.from(
+                          new Map([...defaultQueries, ...(product.queries || [])].map(query => [query.title, query])).values()
+                        ).map((query, idx) => (
+                          <div key={idx} className="mb-3">
+                            <label className="block text-sm font-medium mb-1">
+                              {query.title}
+                            </label>
+                            <input
+                              type={query.type === 'number' ? 'number' : 'text'}
+                              value={queryValues[query.title] || ''}
+                              onChange={(e) => handleQueryChange(query.title, e.target.value)}
+                              className="w-full p-2 border rounded-md"
+                              placeholder={`Enter ${query.title}`}
+                              required={query.title === 'Name' || query.title === 'Phone Number'}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={submitInterest}
+                            disabled={isSubmitting}
+                            className="flex-1 px-4 py-2 bg-[var(--color-green)] text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isSubmitting ? (
+                              <motion.span
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                              />
+                            ) : (
+                              'Submit'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setShowInterestForm(false)}
+                            disabled={isSubmitting}
+                            className="flex-1 px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                    {showThankYou && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-center"
+                      >
+                        <h3 className="text-lg font-semibold text-green-700">
+                          Thank You for Reaching Out!
+                        </h3>
+                        <p className="text-green-600">
+                          We will contact you soon.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
           </motion.div>
-          
+
           {interestingProducts.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -446,13 +591,19 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                       transition={{ duration: 0.3 }}
                       className="bg-white rounded-xl shadow-md overflow-hidden"
                     >
-                      <Link href={`/products/${interestingProduct.slug}`}>
-                        <div className="relative h-48 bg-gray-100">
+                      <Link href={`/products/${interestingProduct._id}`}>
+                        {/* Updated related product images */}
+                        <div className="relative bg-gray-100" style={{ height: '200px' }}>
                           <Image
                             src={interestingProduct.displayImage || "/no-image-placeholder.png"}
                             alt={`Image of ${interestingProduct.displayTitle}`}
-                            layout="fill"
-                            objectFit="cover"
+                            fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                            style={{ 
+                              objectFit: 'contain',
+                              backgroundColor: '#f9f9f9'
+                            }}
+                            quality={80}
                           />
                         </div>
                         <div className="p-4">
@@ -464,8 +615,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                           </h3>
                           {interestingProduct.price && (
                             <p className="text-sm font-bold text-[var(--color-green)]">
-                              ${interestingProduct.price}
-                            </p>
+                            ${interestingProduct.price}
+                            {interestingProduct.priceLabel ? ` (${interestingProduct.priceLabel})` : ""}
+                          </p>
                           )}
                         </div>
                       </Link>

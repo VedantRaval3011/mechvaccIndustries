@@ -6,26 +6,43 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Service } from "@/types/service";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 interface ServiceWithCallbacks extends Service {
   onUpdate?: (updatedService: Service) => void;
   onDelete?: () => void;
 }
 
+const isFileList = (value: unknown): value is FileList => {
+  return typeof window !== 'undefined' && value instanceof FileList;
+};
+
+
 const updateSchema = z.object({
   name: z.string().min(1, "Service name is required"),
   displayTitle: z.string().min(1, "Display title is required"),
   group: z.string().min(1, "Group is required"),
   price: z.number().min(0, "Price must be positive"),
-  displayImage: z.any().optional(),
+  priceLabel: z.string().optional(),
+  description: z.string().optional(),
+  displayImage: z.any().optional().refine(
+    (val) => !val || isFileList(val),
+    { message: "Must be a valid file list" }
+  ),
   additionalImages: z
     .array(
       z.union([
-        z.object({ file: z.any().optional() }),
+        z.object({ 
+          file: z.any().optional().refine(
+            (val) => !val || isFileList(val),
+            { message: "Must be a valid file list" }
+          )
+        }),
         z.object({ url: z.string() }),
       ])
     )
     .optional(),
+  // Rest of your schema remains the same
   video: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   pdf: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   seoKeywords: z.string().optional(),
@@ -62,8 +79,12 @@ export default function ServiceUpdateForm({
 }: ServiceUpdateFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [previewDisplayImage, setPreviewDisplayImage] = useState<string>(service.displayImage || "");
-  const [previewAdditionalImages, setPreviewAdditionalImages] = useState<string[]>(service.additionalImages || []);
+  const [previewDisplayImage, setPreviewDisplayImage] = useState<string>(
+    service.displayImage || ""
+  );
+  const [previewAdditionalImages, setPreviewAdditionalImages] = useState<
+    string[]
+  >(service.additionalImages || []);
 
   const {
     register,
@@ -79,6 +100,8 @@ export default function ServiceUpdateForm({
       displayTitle: service.displayTitle,
       group: service.group,
       price: service.price,
+      priceLabel: service.priceLabel,
+      description: service.description,
       displayImage: undefined,
       additionalImages: service.additionalImages
         ? service.additionalImages.map((url: string) => ({ url }))
@@ -91,17 +114,29 @@ export default function ServiceUpdateForm({
     },
   });
 
-  const { fields: additionalImageFields, append: appendImage, remove: removeImage } = useFieldArray({
+  const {
+    fields: additionalImageFields,
+    append: appendImage,
+    remove: removeImage,
+  } = useFieldArray({
     control,
     name: "additionalImages",
   });
 
-  const { fields: specFields, append: appendSpec, remove: removeSpec } = useFieldArray({
+  const {
+    fields: specFields,
+    append: appendSpec,
+    remove: removeSpec,
+  } = useFieldArray({
     control,
     name: "specifications",
   });
 
-  const { fields: queryFields, append: appendQuery, remove: removeQuery } = useFieldArray({
+  const {
+    fields: queryFields,
+    append: appendQuery,
+    remove: removeQuery,
+  } = useFieldArray({
     control,
     name: "queries",
   });
@@ -112,6 +147,8 @@ export default function ServiceUpdateForm({
       displayTitle: service.displayTitle,
       group: service.group,
       price: service.price,
+      priceLabel: service.priceLabel,
+      description: service.description,
       displayImage: undefined,
       additionalImages: service.additionalImages
         ? service.additionalImages.map((url: string) => ({ url }))
@@ -158,6 +195,8 @@ export default function ServiceUpdateForm({
       formData.append("displayTitle", data.displayTitle);
       formData.append("group", data.group);
       formData.append("price", data.price.toString());
+      formData.append("priceLabel", data.priceLabel || "");
+      formData.append("description", data.description || "");
       if (data.displayImage && data.displayImage.length > 0) {
         formData.append("displayImage", data.displayImage[0]);
       } else {
@@ -185,8 +224,6 @@ export default function ServiceUpdateForm({
         throw new Error("Failed to update main service details");
       }
 
-      const updatedMainService: Service = await mainResponse.json();
-
       const specResponse = await fetch(`/api/services/step2/${service._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -196,8 +233,6 @@ export default function ServiceUpdateForm({
       if (!specResponse.ok) {
         throw new Error("Failed to update specifications");
       }
-
-      const updatedServiceWithSpecs: Service = await specResponse.json();
 
       const queryResponse = await fetch(`/api/services/step3/${service._id}`, {
         method: "PUT",
@@ -221,6 +256,8 @@ export default function ServiceUpdateForm({
         displayTitle: updatedService.displayTitle,
         group: updatedService.group,
         price: updatedService.price,
+        priceLabel: updatedService.priceLabel,
+        description: updatedService.description,
         displayImage: undefined,
         additionalImages: updatedService.additionalImages
           ? updatedService.additionalImages.map((url) => ({ url }))
@@ -267,52 +304,89 @@ export default function ServiceUpdateForm({
 
   return (
     <div className="space-y-8 p-2 bg-white rounded-2xl ">
-      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">Update Service</h2>
+      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">
+        Update Service
+      </h2>
 
       {(isLoading || isDeleting) && (
         <div className="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
-          <svg className="animate-spin h-5 w-5 mr-3 text-[var(--color-green)]" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          <svg
+            className="animate-spin h-5 w-5 mr-3 text-[var(--color-green)]"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+              fill="none"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
-          <span className="text-gray-700">{isLoading ? "Updating service..." : "Deleting service..."}</span>
+          <span className="text-gray-700">
+            {isLoading ? "Updating service..." : "Deleting service..."}
+          </span>
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Service Name
+            </label>
             <input
               {...register("name")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
-            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
+            {errors.name && (
+              <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Display Title</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Display Title
+            </label>
             <input
               {...register("displayTitle")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
-            {errors.displayTitle && <p className="text-red-500 text-sm mt-1">{errors.displayTitle.message}</p>}
+            {errors.displayTitle && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.displayTitle.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Group
+            </label>
             <input
               {...register("group")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
-            {errors.group && <p className="text-red-500 text-sm mt-1">{errors.group.message}</p>}
+            {errors.group && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.group.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Price
+            </label>
             <input
               {...register("price", { valueAsNumber: true })}
               type="number"
@@ -320,12 +394,49 @@ export default function ServiceUpdateForm({
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
-            {errors.price && <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>}
+            {errors.price && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.price.message}
+              </p>
+            )}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Display Image</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Price Label
+          </label>
+          <input
+            {...register("priceLabel")}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+            disabled={isLoading || isDeleting}
+          />
+          {errors.priceLabel && (
+            <p className="text-red-500 text-sm mt-1">
+              {errors.priceLabel.message}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Description
+          </label>
+          <input
+            {...register("description")}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+            disabled={isLoading || isDeleting}
+          />
+          {errors.description && (
+            <p className="text-red-500 text-sm mt-1">
+              {errors.description.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Display Image
+          </label>
           <input
             {...register("displayImage")}
             type="file"
@@ -334,12 +445,20 @@ export default function ServiceUpdateForm({
             disabled={isLoading || isDeleting}
           />
           {previewDisplayImage && (
-            <img src={previewDisplayImage} alt="Display Preview" className="mt-4 h-40 w-auto rounded-lg shadow-md" />
+            <Image
+            src={previewDisplayImage}
+            alt="Display Preview"
+            width={200}
+            height={160}  
+            className="mt-4 rounded-lg shadow-md"  
+          />
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Images</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Additional Images
+          </label>
           {additionalImageFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <input
@@ -358,11 +477,13 @@ export default function ServiceUpdateForm({
                 ✕
               </button>
               {previewAdditionalImages[index] && (
-                <img
-                  src={previewAdditionalImages[index]}
-                  alt="Additional Preview"
-                  className="h-24 w-auto rounded-lg shadow-md"
-                />
+                <Image
+                src={previewAdditionalImages[index]}
+                alt="Additional Preview"
+                width={96}    
+                height={96}   
+                className="rounded-lg shadow-md"  // Removed h-24 and w-auto
+              />
               )}
             </div>
           ))}
@@ -377,49 +498,77 @@ export default function ServiceUpdateForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Video URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Video URL
+          </label>
           <input
             {...register("video")}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
             disabled={isLoading || isDeleting}
           />
-          {errors.video && <p className="text-red-500 text-sm mt-1">{errors.video.message}</p>}
+          {errors.video && (
+            <p className="text-red-500 text-sm mt-1">{errors.video.message}</p>
+          )}
           {watch("video") && (
-            <a href={watch("video")} target="_blank" rel="noopener noreferrer" className="text-[var(--color-green)] mt-2 block hover:underline">
+            <a
+              href={watch("video")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-green)] mt-2 block hover:underline"
+            >
               {watch("video")}
             </a>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">PDF URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            PDF URL
+          </label>
           <input
             {...register("pdf")}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
             disabled={isLoading || isDeleting}
           />
-          {errors.pdf && <p className="text-red-500 text-sm mt-1">{errors.pdf.message}</p>}
+          {errors.pdf && (
+            <p className="text-red-500 text-sm mt-1">{errors.pdf.message}</p>
+          )}
           {watch("pdf") && (
-            <a href={watch("pdf")} target="_blank" rel="noopener noreferrer" className="text-[var(--color-green)] mt-2 block hover:underline">
+            <a
+              href={watch("pdf")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-green)] mt-2 block hover:underline"
+            >
               {watch("pdf")}
             </a>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">SEO Keywords</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            SEO Keywords
+          </label>
           <input
             {...register("seoKeywords")}
             placeholder="Enter SEO keywords (comma-separated)"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
             disabled={isLoading || isDeleting}
           />
-          {errors.seoKeywords && <p className="text-red-500 text-sm mt-1">{errors.seoKeywords.message}</p>}
-          <p className="text-gray-500 text-sm mt-2">e.g., service, offer, deal</p>
+          {errors.seoKeywords && (
+            <p className="text-red-500 text-sm mt-1">
+              {errors.seoKeywords.message}
+            </p>
+          )}
+          <p className="text-gray-500 text-sm mt-2">
+            e.g., service, offer, deal
+          </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Specifications</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Specifications
+          </label>
           {specFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <div className="flex-1">
@@ -430,7 +579,9 @@ export default function ServiceUpdateForm({
                   disabled={isLoading || isDeleting}
                 />
                 {errors.specifications?.[index]?.title && (
-                  <p className="text-red-500 text-sm mt-1">{errors.specifications[index]?.title?.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.specifications[index]?.title?.message}
+                  </p>
                 )}
               </div>
               <div className="flex-1">
@@ -441,7 +592,9 @@ export default function ServiceUpdateForm({
                   disabled={isLoading || isDeleting}
                 />
                 {errors.specifications?.[index]?.value && (
-                  <p className="text-red-500 text-sm mt-1">{errors.specifications[index]?.value?.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.specifications[index]?.value?.message}
+                  </p>
                 )}
               </div>
               <button
@@ -465,7 +618,9 @@ export default function ServiceUpdateForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Queries</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Queries
+          </label>
           {queryFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <div className="flex-1">
@@ -476,7 +631,9 @@ export default function ServiceUpdateForm({
                   disabled={isLoading || isDeleting}
                 />
                 {errors.queries?.[index]?.title && (
-                  <p className="text-red-500 text-sm mt-1">{errors.queries[index]?.title?.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.queries[index]?.title?.message}
+                  </p>
                 )}
               </div>
               <div className="flex-1">
@@ -488,9 +645,12 @@ export default function ServiceUpdateForm({
                   <option value="number">Number</option>
                   <option value="string">String</option>
                 </select>
-                {errors.queries?.[index]?.type && typeof errors.queries[index]?.type === "object" && (
-                  <p className="text-red-500 text-sm mt-1">{(errors.queries[index]?.type as any).message}</p>
-                )}
+                {errors.queries?.[index]?.type &&
+                  typeof errors.queries[index]?.type === "object" && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.queries[index]?.type.message}
+                    </p>
+                  )}
               </div>
               <button
                 type="button"

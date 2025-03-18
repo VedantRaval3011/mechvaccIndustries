@@ -1,231 +1,150 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import Image from "next/image";
-
-// Define the type for a product
-interface Product {
-  id: string;
-  title: string;
-  description: string;
-  image: string; // URL of the image
-}
-
-// Dummy featured products array (since store is removed)
-const featuredProducts: Product[] = [
-  {
-    id: "1",
-    title: "Product 1",
-    description: "High-quality product for industrial use.",
-    image: "/demo-1.jpg",
-  },
-  {
-    id: "2",
-    title: "Product 2",
-    description: "Reliable and efficient product for export.",
-    image: "/demo-2.jpg",
-  },
-  {
-    id: "3",
-    title: "Product 3",
-    description: "Durable and cost-effective product.",
-    image: "/demo-3.jpg",
-  },
-  {
-    id: "4",
-    title: "Product 4",
-    description: "Designed to meet industry standards.",
-    image: "/demo-1.jpg",
-  },
-];
+import Link from "next/link";
+import { Product } from "@/types/product";
 
 const FeaturedProducts = () => {
-  const [startIndex, setStartIndex] = useState<number>(0);
-  const [direction, setDirection] = useState<number>(0); // 1 for next, -1 for prev
+  const [startIndex, setStartIndex] = useState(0);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
 
-  // Handlers for navigation
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch("/api/products");
+        const data: Product[] = await response.json();
+        setFeaturedProducts(data);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        setFeaturedProducts([]);
+      }
+    };
+    fetchProducts();
+  }, []);
+
   const handleNextSlide = () => {
-    setDirection(1);
-    setStartIndex((prevIndex) => (prevIndex + 1) % featuredProducts.length);
+    setStartIndex((prev) => (prev + 1) % featuredProducts.length);
   };
 
   const handlePrevSlide = () => {
-    setDirection(-1);
-    setStartIndex(
-      (prevIndex) =>
-        (prevIndex - 1 + featuredProducts.length) % featuredProducts.length
+    setStartIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
+  };
+
+  const getVisibleProducts = () => {
+    if (!featuredProducts.length) return [];
+    
+    const itemsToShow = () => {
+      const width = typeof window !== "undefined" ? window.innerWidth : 0;
+      if (width < 768) return 1;
+      if (width < 1024) return 2;
+      if (width < 1280) return 3;
+      return 4;
+    };
+
+    const count = itemsToShow();
+    return Array.from(
+      { length: count },
+      (_, i) => featuredProducts[(startIndex + i) % featuredProducts.length]
     );
   };
 
-  // Visible products for different screen sizes
-  const visibleProducts: Product[] = [
-    featuredProducts[startIndex],
-    featuredProducts[(startIndex + 1) % featuredProducts.length],
-    featuredProducts[(startIndex + 2) % featuredProducts.length],
-  ];
-
-  const visibleProductsInMobile: Product[] = [featuredProducts[startIndex]];
-  const visibleProductsForDesktop: Product[] = [
-    featuredProducts[startIndex],
-    featuredProducts[(startIndex + 1) % featuredProducts.length],
-    featuredProducts[(startIndex + 2) % featuredProducts.length],
-    featuredProducts[(startIndex + 3) % featuredProducts.length],
-  ];
-
-  // Animation variants for sliding and scaling effect
+  // Simplified slide animation
   const slideVariants = {
-    enter: (direction: number) => ({
-      translateX: direction === 1 ? 300 : -300,
-      opacity: 0,
-      scale: 0.8,
-    }),
-    center: {
-      translateX: 0,
-      opacity: 1,
-      scale: 1,
-      zIndex: 1,
-    },
-    exit: (direction: number) => ({
-      translateX: direction === 1 ? -300 : 300,
-      opacity: 0,
-      scale: 0.8,
-      zIndex: 0,
-    }),
+    hidden: { opacity: 0, x: 50 },
+    visible: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -50 },
   };
 
+  if (!featuredProducts.length) {
+    return <div>Loading products...</div>;
+  }
+
+  const ProductCard = ({ item }: { item: Product }) => (
+    <Link href={`/products/${item._id}`} className="w-full">
+      <motion.div
+        key={item._id}
+        className="flex flex-col items-center rounded-3xl shadow-lg h-[28rem] w-full bg-white cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden border border-gray-100"
+        variants={slideVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="relative w-full h-56">
+          <Image
+            src={item.displayImage}
+            width={285}
+            height={500}
+            alt={item.displayTitle}
+            className="h-56 w-full object-cover rounded-t-3xl"
+          />
+        </div>
+        
+        <div className="flex flex-col flex-1 w-full p-5 pb-6 justify-between bg-white">
+          <div className="flex flex-col space-y-3">
+            <h2 className="text-xl font-semibold uppercase line-clamp-2">
+              {item.displayTitle}
+            </h2>
+            <div className="flex items-center">
+              <span className="text-base font-medium bg-green-50 text-[var(--color-green)] px-3 py-1 rounded-full">
+                ₹ {item.price}
+              </span>
+              <span className="text-gray-600 ml-2 text-sm">
+                ({item.priceLabel})
+              </span>
+            </div>
+            <p className="text-gray-600 text-sm line-clamp-2">
+              {item.description || "No description available"}
+            </p>
+            <div className="flex justify-between items-center mt-2">
+              <p className="text-[var(--color-green)] font-medium flex items-center cursor-pointer hover:underline">
+                Know More <ArrowRight size={16} className="ml-1" />
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </Link>
+  );
+
   return (
-    <div className="container flex flex-col gap-4 items-center mt-5 mx-auto mb-10 xl:mb-24 3xl:mt-16 overflow-hidden">
-      {/* Title Section */}
-      <div className="text-2xl md:text-4xl lg:text-5xl font-semibold text-center flex items-center flex-col gap-2">
+    <div className="container px-4 pb-10 sm:px-6 flex flex-col items-center mt-5 mx-auto mb-5 xl:mb-24 overflow-hidden">
+      <div className="text-2xl md:text-4xl lg:text-5xl font-semibold text-center flex items-center flex-col">
         <h1>
           OUR EXPORT-APPROVED <br />
           <span className="relative text-3xl md:text-5xl lg:text-7xl">
             PRODUCTS{" "}
-            <span className="absolute left-[2px] text-green">PRODUCTS</span>
+            <span className="absolute left-[2px] text-[var(--color-green)]">
+              PRODUCTS
+            </span>
           </span>
         </h1>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handlePrevSlide}
-            className="bg-white cursor-pointer text-green rounded-full shadow-lg hover:bg-green hover:text-white"
-          >
-            <ArrowLeft size={30} />
-          </button>
-          <button
-            onClick={handleNextSlide}
-            className="bg-white cursor-pointer text-green rounded-full shadow-lg hover:bg-green hover:text-white"
-          >
-            <ArrowRight size={30} />
-          </button>
-        </div>
       </div>
 
-      {/* Desktop/Tablet View */}
-      <div className="flex items-center justify-center gap-[1.3rem] my-auto duration-700 ease-in-out overflow-hidden">
-        {visibleProducts.map((item, i) => (
-          <motion.div
-            key={item.id}
-            className="hidden md:flex xl:hidden flex-col items-center rounded-3xl shadow-lg h-[20rem] w-60"
-            style={{ willChange: "transform, opacity" }}
-            custom={direction}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            variants={slideVariants}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-          >
-            <Image
-              src={item.image}
-              width={285}
-              height={500}
-              alt={item.title}
-              className="rounded-t-3xl h-56"
-            />
-            <div className="w-60 h-20 flex justify-around gap-6 items-center p-2 mt-6">
-              <div>
-                <h2 className="text-xl font-medium">{item.title}</h2>
-                <p className="text-xs">{item.description}</p>
-              </div>
-              <Play
-                size={40}
-                className="mb-2 shadow-lg bg-grayBg rounded-3xl p-1"
-                color="#0dac9a"
-              />
-            </div>
-          </motion.div>
-        ))}
+      <button className="bg-[var(--color-green)] lg:text-2xl text-white text-2xl rounded-2xl cursor-pointer text-center p-2.5 mt-2">
+        All Products
+      </button>
+
+      <div className="flex items-center gap-4 mt-4 mb-6">
+        <button
+          onClick={handlePrevSlide}
+          className="bg-white text-green rounded-full shadow-lg hover:text-[var(--color-green)] hover:scale-105 p-2 transition-all duration-300"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <button
+          onClick={handleNextSlide}
+          className="bg-white text-green rounded-full shadow-lg hover:text-[var(--color-green)] hover:scale-105 p-2 transition-all duration-300"
+        >
+          <ArrowRight size={24} />
+        </button>
       </div>
 
-      {/* Desktop View */}
-      <div className="flex items-center justify-center gap-7 my-auto">
-        {visibleProductsForDesktop.map((item) => (
-          <motion.div
-            key={item.id}
-            className="hidden xl:flex flex-col items-center rounded-3xl shadow-lg h-[20.5rem] overflow-hidden"
-            style={{ willChange: "transform, opacity" }}
-            custom={direction}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            variants={slideVariants}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-          >
-            <Image
-              src={item.image}
-              width={285}
-              height={500}
-              alt={item.title}
-              className="rounded-t-3xl h-56"
-            />
-            <div className="w-60 flex justify-around gap-6 items-end mt-6">
-              <div>
-                <h2 className="text-xl font-medium">{item.title}</h2>
-                <p className="text-xs">{item.description}</p>
-              </div>
-              <Play
-                size={40}
-                className="mb-2 shadow-lg bg-grayBg rounded-3xl p-1"
-                color="#0dac9a"
-              />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Mobile View */}
-      <div className="flex items-center">
-        {visibleProductsInMobile.map((item) => (
-          <motion.div
-            key={item.id}
-            className="md:hidden flex flex-col items-center rounded-3xl shadow-lg"
-            style={{ willChange: "transform, opacity" }}
-            custom={direction}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            variants={slideVariants}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-          >
-            <Image
-              src={item.image}
-              width={285}
-              height={500}
-              alt={item.title}
-              className="rounded-t-3xl h-56"
-            />
-            <div className="w-60 h-20 flex justify-around gap-2 items-end mb-5">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-xl font-medium ml-2">{item.title}</h2>
-                <p className="text-xs ml-2">{item.description}</p>
-              </div>
-              <Play
-                size={40}
-                className="mb-2 shadow-lg bg-grayBg rounded-3xl p-1"
-                color="#0dac9a"
-              />
-            </div>
-          </motion.div>
+      <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 w-full max-w-7xl">
+        {getVisibleProducts().map((item) => (
+          <ProductCard key={item._id} item={item} />
         ))}
       </div>
     </div>

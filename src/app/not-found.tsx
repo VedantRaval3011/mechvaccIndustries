@@ -1,27 +1,27 @@
 // app/not-found.tsx
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { useState } from "react";
 
 // Predefined orb configurations to avoid random values during SSR
 const orbConfigs = [
-  { size: 15, x: '10%', y: '20%' },
-  { size: 25, x: '20%', y: '80%' },
-  { size: 18, x: '30%', y: '40%' },
-  { size: 22, x: '40%', y: '60%' },
-  { size: 20, x: '50%', y: '30%' },
-  { size: 17, x: '60%', y: '70%' },
-  { size: 23, x: '70%', y: '50%' },
-  { size: 19, x: '80%', y: '90%' },
-  { size: 16, x: '90%', y: '10%' },
-  { size: 24, x: '15%', y: '55%' },
-  { size: 21, x: '25%', y: '35%' },
-  { size: 26, x: '35%', y: '75%' },
-  { size: 14, x: '45%', y: '25%' },
-  { size: 27, x: '55%', y: '85%' },
-  { size: 13, x: '65%', y: '15%' },
+  { size: 15, x: "10%", y: "20%" },
+  { size: 25, x: "20%", y: "80%" },
+  { size: 18, x: "30%", y: "40%" },
+  { size: 22, x: "40%", y: "60%" },
+  { size: 20, x: "50%", y: "30%" },
+  { size: 17, x: "60%", y: "70%" },
+  { size: 23, x: "70%", y: "50%" },
+  { size: 19, x: "80%", y: "90%" },
+  { size: 16, x: "90%", y: "10%" },
+  { size: 24, x: "15%", y: "55%" },
+  { size: 21, x: "25%", y: "35%" },
+  { size: 26, x: "35%", y: "75%" },
+  { size: 14, x: "45%", y: "25%" },
+  { size: 27, x: "55%", y: "85%" },
+  { size: 13, x: "65%", y: "15%" },
 ];
 
 export default function NotFound() {
@@ -41,7 +41,7 @@ export default function NotFound() {
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: 'easeOut' },
+      transition: { duration: 0.6, ease: "easeOut" },
     },
   };
 
@@ -50,7 +50,7 @@ export default function NotFound() {
     animate: {
       scale: [1, 1.05, 1],
       rotate: [0, 2, -2, 0],
-      transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 3, repeat: Infinity, ease: "easeInOut" },
     },
   };
 
@@ -76,7 +76,7 @@ export default function NotFound() {
             transition={{
               duration: 4 + i * 0.5, // Staggered durations
               repeat: Infinity,
-              ease: 'linear',
+              ease: "linear",
             }}
           />
         ))}
@@ -84,13 +84,13 @@ export default function NotFound() {
         {/* Holographic Rings */}
         <motion.div
           className="absolute w-64 h-64 rounded-full border-2 border-[var(--color-green)]/30"
-          style={{ top: '20%', left: '10%' }}
+          style={{ top: "20%", left: "10%" }}
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
           transition={{ duration: 4, repeat: Infinity }}
         />
         <motion.div
           className="absolute w-96 h-96 rounded-full border-2 border-[var(--color-green)]/20"
-          style={{ bottom: '15%', right: '15%' }}
+          style={{ bottom: "15%", right: "15%" }}
           animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.4, 0.2] }}
           transition={{ duration: 5, repeat: Infinity }}
         />
@@ -133,7 +133,8 @@ export default function NotFound() {
           variants={itemVariants}
           className="text-[var(--color-black)]/80 mb-8 text-lg relative z-10 bg-[var(--color-green-bg)]/80 p-2 rounded-lg"
         >
-          System Error: This sector is under quantum reconstruction or coordinates are misaligned.
+          System Error: This Page is under reconstruction or your entered link
+          is misaligned.
         </motion.p>
 
         {/* Fancy Portal-like Button */}
@@ -146,7 +147,10 @@ export default function NotFound() {
           >
             <motion.div
               className="absolute inset-0 bg-gradient-to-r from-[var(--color-large-green-gradient-start)] to-[var(--color-large-green-gradient-end)]"
-              animate={{ scale: isHovered ? 1.2 : 1, rotate: isHovered ? 360 : 0 }}
+              animate={{
+                scale: isHovered ? 1.2 : 1,
+                rotate: isHovered ? 360 : 0,
+              }}
               transition={{ duration: 0.5 }}
             />
             <motion.div
@@ -163,11 +167,17 @@ export default function NotFound() {
                 animate={{ rotate: isHovered ? 360 : 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
                   <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />
                 </svg>
               </motion.span>
-              <span>Teleport to Base</span>
+              <span>Move to Home (Mechvacc Industries)</span>
             </motion.span>
           </Link>
         </motion.div>

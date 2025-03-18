@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Service } from "@/types/service"; // Assuming a Service type exists
+import { Service } from "@/types/service";
+import { useSearchParams } from "next/navigation";
 import { Search, Filter, ChevronRight, List, X, Star } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { Suspense } from "react"; // Import Suspense
 
-export default function ServicesPage() {
+// Child component containing the main logic and UI
+function ServicesContent() {
+  const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [priceFilter, setPriceFilter] = useState<{ min: number; max: number }>({
@@ -14,8 +18,18 @@ export default function ServicesPage() {
     max: Infinity,
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeGroup, setActiveGroup] = useState<string>(
+    searchParams.get("activeGroup") || "all"
+  );
   const [showFilters, setShowFilters] = useState<boolean>(false);
+
+  // Sync activeGroup with URL changes
+  useEffect(() => {
+    const newActiveGroup = searchParams.get("activeGroup") || "all";
+    if (newActiveGroup !== activeGroup) {
+      setActiveGroup(newActiveGroup);
+    }
+  }, [searchParams, activeGroup]);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -35,9 +49,9 @@ export default function ServicesPage() {
 
   const groupedServices = useMemo(() => {
     return services.reduce((acc: { [key: string]: Service[] }, service) => {
-      const category = service.group || "Uncategorized";
-      acc[category] = acc[category] || [];
-      acc[category].push(service);
+      const group = service.group || "Uncategorized";
+      acc[group] = acc[group] || [];
+      acc[group].push(service);
       return acc;
     }, {});
   }, [services]);
@@ -45,16 +59,14 @@ export default function ServicesPage() {
   const filteredGroupedServices = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const filtered: { [key: string]: Service[] } = {};
-    for (const [category, categoryServices] of Object.entries(
-      groupedServices
-    )) {
-      filtered[category] = categoryServices.filter((service) => {
+    for (const [group, groupServices] of Object.entries(groupedServices)) {
+      filtered[group] = groupServices.filter((service) => {
         const nameMatch = service.name.toLowerCase().includes(query);
-        const categoryMatch = service.group.toLowerCase().includes(query);
+        const groupMatch = service.group.toLowerCase().includes(query);
         const priceMatch =
           (service.price ?? 0) >= priceFilter.min &&
           (service.price ?? 0) <= priceFilter.max;
-        return (nameMatch || categoryMatch) && priceMatch;
+        return (nameMatch || groupMatch) && priceMatch;
       });
     }
     return filtered;
@@ -84,10 +96,10 @@ export default function ServicesPage() {
   const resetFilters = () => {
     setSearchQuery("");
     setPriceFilter({ min: 0, max: Infinity });
-    setActiveCategory("all");
+    setActiveGroup("all");
   };
 
-  const allCategories = Object.keys(filteredGroupedServices);
+  const allGroups = Object.keys(filteredGroupedServices);
 
   if (isLoading) {
     return (
@@ -210,6 +222,7 @@ export default function ServicesPage() {
                       <input
                         type="number"
                         placeholder="Min"
+                        value={priceFilter.min === 0 ? "" : priceFilter.min}
                         onChange={(e) => handlePriceFilterChange(e, "min")}
                         className="p-3 rounded-lg border-2 border-gray-200 w-full text-[var(--color-black)] focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all duration-300"
                       />
@@ -217,6 +230,7 @@ export default function ServicesPage() {
                       <input
                         type="number"
                         placeholder="Max"
+                        value={priceFilter.max === Infinity ? "" : priceFilter.max}
                         onChange={(e) => handlePriceFilterChange(e, "max")}
                         className="p-3 rounded-lg border-2 border-gray-200 w-full text-[var(--color-black)] focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all duration-300"
                       />
@@ -228,8 +242,8 @@ export default function ServicesPage() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Category Navigation */}
-        {allCategories.length > 0 && (
+        {/* Group Navigation */}
+        {allGroups.length > 0 && (
           <motion.div
             className="mb-12 overflow-x-auto py-2 no-scrollbar"
             initial={{ opacity: 0, y: 20 }}
@@ -240,9 +254,9 @@ export default function ServicesPage() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveCategory("all")}
+                onClick={() => setActiveGroup("all")}
                 className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-                  activeCategory === "all"
+                  activeGroup === "all"
                     ? "bg-[var(--color-green)] text-white shadow-md"
                     : "bg-white text-[var(--color-black)] border-2 border-gray-200 hover:border-[var(--color-green)] hover:text-[var(--color-green)]"
                 }`}
@@ -251,19 +265,19 @@ export default function ServicesPage() {
                 All Services
               </motion.button>
 
-              {allCategories.map((category) => (
+              {allGroups.map((group) => (
                 <motion.button
-                  key={category}
+                  key={group}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveCategory(category)}
+                  onClick={() => setActiveGroup(group)}
                   className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-                    activeCategory === category
+                    activeGroup === group
                       ? "bg-[var(--color-green)] text-white shadow-md"
                       : "bg-white text-[var(--color-black)] border-2 border-gray-200 hover:border-[var(--color-green)] hover:text-[var(--color-green)]"
                   }`}
-                >
-                  {category}
+              >
+                  {group}
                 </motion.button>
               ))}
             </div>
@@ -289,7 +303,7 @@ export default function ServicesPage() {
               No Results Found
             </h2>
             <p className="text-lg text-gray-500 mb-8 max-w-md mx-auto">
-              We couldn't find any services that match your current filters.
+              We couldn&apos;t find any services that match your current filters.
             </p>
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -308,9 +322,9 @@ export default function ServicesPage() {
             transition={{ duration: 0.5, delay: 0.6 }}
           >
             <AnimatePresence>
-              {(activeCategory === "all"
+              {(activeGroup === "all"
                 ? allFilteredServices
-                : filteredGroupedServices[activeCategory] || []
+                : filteredGroupedServices[activeGroup] || []
               ).map((service, index) => (
                 <motion.div
                   key={service._id}
@@ -358,7 +372,7 @@ export default function ServicesPage() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.2 + index * 0.1 }}
                       >
-                        ${service.price}
+                        ₹{service.price} ({service.priceLabel})
                       </motion.div>
                     )}
                   </div>
@@ -372,6 +386,9 @@ export default function ServicesPage() {
                         <h3 className="text-xl font-bold text-[var(--color-black)] leading-tight">
                           {service.displayTitle}
                         </h3>
+                        <p className="text-sm font-medium text-[var(--color-green)] mb-1 mt-4">
+                          {service.description || `${service.name}`}
+                        </p>
                       </div>
                       <motion.div
                         whileHover={{ rotate: 360 }}
@@ -432,7 +449,7 @@ export default function ServicesPage() {
 
                       <Link href={`/services/${service._id}`}>
                         <motion.button
-                          className="flex items-center px-5 py-2 bg-[var(--color-green)] text-white rounded-xl hover:bg-opacity-90 transition-all duration-300 font-medium"
+                          className="flex items-center px-5 py-2 bg-[var(--color-green)] text-white rounded-xl hover:bg-opacity-90 transition-all duration-300 font-medium cursor-pointer"
                           whileHover={{
                             scale: 1.05,
                             x: 5,
@@ -457,5 +474,34 @@ export default function ServicesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function ServicesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-gray-bg)] text-[var(--color-black)]">
+          <motion.div
+            className="relative w-16 h-16"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          >
+            <motion.div className="absolute inset-0 border-4 border-t-[var(--color-green)] border-r-transparent border-b-transparent border-l-transparent rounded-full"></motion.div>
+          </motion.div>
+          <motion.p
+            className="mt-6 text-xl font-medium"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            Loading Services...
+          </motion.p>
+        </div>
+      }
+    >
+      <ServicesContent />
+    </Suspense>
   );
 }

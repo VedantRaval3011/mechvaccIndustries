@@ -1,7 +1,6 @@
 "use client";
 
 import { Mail, MapPinHouse, PhoneCall } from "lucide-react";
-import Image from "next/image";
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "react-toastify";
@@ -54,6 +53,11 @@ export default function EnquiryPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
+    // Show processing toast
+    const processingToastId = toast.info("Processing your enquiry...", {
+      autoClose: false, // Keep it open until updated
+    });
+
     try {
       const res = await fetch("/api/enquiry", {
         method: "POST",
@@ -64,7 +68,12 @@ export default function EnquiryPage() {
       });
 
       if (res.ok) {
-        toast.success("Transmission successful!");
+        // Update toast to success
+        toast.update(processingToastId, {
+          render: "Your enquiry has been submitted successfully.",
+          type: "success",
+          autoClose: 5000, // Close after 5 seconds
+        });
         setFormData({
           firstname: "",
           lastname: "",
@@ -75,10 +84,20 @@ export default function EnquiryPage() {
         });
       } else {
         const errorData = await res.json();
-        toast.error(`Error: ${errorData.message}`);
+        // Update toast to error
+        toast.update(processingToastId, {
+          render: `Submission error: ${errorData.message}`,
+          type: "error",
+          autoClose: 5000,
+        });
       }
     } catch (error) {
-      toast.error(`Transmission failed: ${error}`);
+      // Update toast to error
+      toast.update(processingToastId, {
+        render: `Submission failed: ${error instanceof Error ? error.message : "An unexpected error occurred"}`,
+        type: "error",
+        autoClose: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -112,41 +131,9 @@ export default function EnquiryPage() {
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-100 to-gray-200 text-gray-900 pb-20 overflow-hidden relative">
       {/* Light-themed background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-green-300/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-0 w-72 h-72 bg-green-200/20 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-0 left-0 w-96 h-96 bg-[var(--color-green)]/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-0 w-72 h-72 bg-[var(--color-green)]/20 rounded-full blur-3xl animate-pulse delay-1000" />
       </div>
-
-      {/* Header */}
-      <motion.div
-        initial={{ scale: 1.5, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
-        className="relative h-72 md:h-96 lg:h-[28rem]"
-      >
-        <Image
-          src="/group (1).png"
-          width={1000}
-          height={1000}
-          quality={100}
-          alt="group"
-          className="w-full h-full object-cover opacity-60"
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-green-100/50 via-green-200/30 to-white/80" />
-        <motion.h1
-          initial={{ x: -300, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 60, delay: 0.3 }}
-          className="absolute inset-0 flex items-center justify-end pr-12 lg:pr-64 text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-green-700 drop-shadow-[0_0_15px_rgba(34,197,94,0.5)]"
-        >
-          ENQUIRY PROTOCOL
-        </motion.h1>
-        <motion.div
-          className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 via-green-600 to-transparent"
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 1.5, delay: 0.6 }}
-        />
-      </motion.div>
 
       {/* Main content */}
       <motion.div
@@ -158,13 +145,12 @@ export default function EnquiryPage() {
         <div className="grid lg:grid-cols-2 gap-16">
           {/* Contact Info */}
           <motion.div variants={itemVariants} className="relative">
-            <div className="absolute -top-8 -left-8 w-32 h-32 bg-green-400/20 rounded-full blur-2xl animate-pulse delay-500" />
-            <h1 className="text-4xl lg:text-6xl font-extrabold mb-8 bg-gradient-to-r from-green-500 to-green-700 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(34,197,94,0.3)]">
-              Connect with Us
+            <div className="absolute -top-8 -left-8 w-32 h-32 bg-[var(--color-green)]/20 rounded-full blur-2xl animate-pulse delay-500" />
+            <h1 className="text-4xl lg:text-6xl font-extrabold mb-8 bg-gradient-to-r from-[var(--color-green)] to-[var(--color-green)]/70 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(var(--color-green-rgb),0.3)]">
+              Contact Us
             </h1>
             <p className="text-gray-700 lg:text-xl mb-10 leading-relaxed font-light tracking-wide">
-              Link into our eco-network. Your signals power the future—we’re
-              ready to amplify them.
+              We value your interest in our services. Please feel free to reach out with any questions or inquiries—we are here to assist you.
             </p>
             <div className="space-y-10">
               {[
@@ -173,7 +159,7 @@ export default function EnquiryPage() {
                   text: "Sector 1055, Lorem Quadrant, Elk Groot System",
                 },
                 { icon: PhoneCall, text: "+1 234 678 9108 99" },
-                { icon: Mail, text: "Contact@mechvacc.com" },
+                { icon: Mail, text: "contact@mechvacc.com" },
               ].map((item, index) => (
                 <motion.div
                   key={index}
@@ -181,10 +167,10 @@ export default function EnquiryPage() {
                   className="flex items-center gap-5 group"
                   whileHover={{ x: 10 }}
                 >
-                  <div className="p-4 bg-green-500/20 rounded-full group-hover:bg-green-500/40 group-hover:shadow-[0_0_15px_rgba(34,197,94,0.5)] transition-all duration-300">
-                    <item.icon className="text-green-600" size={30} />
+                  <div className="p-4 bg-[var(--color-green)]/20 rounded-full group-hover:bg-[var(--color-green)]/40 group-hover:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.5)] transition-all duration-300">
+                    <item.icon className="text-[var(--color-green)]" size={30} />
                   </div>
-                  <p className="font-medium text-gray-800 group-hover:text-green-600 transition-colors duration-300">
+                  <p className="font-medium text-gray-800 group-hover:text-[var(--color-green)] transition-colors duration-300">
                     {item.text}
                   </p>
                 </motion.div>
@@ -195,9 +181,9 @@ export default function EnquiryPage() {
           {/* Form */}
           <motion.div
             variants={itemVariants}
-            className="relative bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-[0_0_30px_rgba(34,197,94,0.1)] border border-green-500/30"
+            className="relative bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-[0_0_30px_rgba(var(--color-green-rgb),0.1)] border border-[var(--color-green)]/30"
           >
-            <div className="absolute -top-6 -right-6 w-40 h-40 bg-green-300/15 rounded-full blur-3xl animate-pulse delay-700" />
+            <div className="absolute -top-6 -right-6 w-40 h-40 bg-[var(--color-green)]/15 rounded-full blur-3xl animate-pulse delay-700" />
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {["firstname", "lastname"].map((field) => (
@@ -207,7 +193,7 @@ export default function EnquiryPage() {
                     type="text"
                     name={field}
                     placeholder={`${field === "firstname" ? "First" : "Last"} Name*`}
-                    className="w-full p-4 rounded-xl bg-gray-50/80 border border-green-500/30 focus:outline-none focus:border-green-600 focus:shadow-[0_0_15px_rgba(34,197,94,0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-green-500/50"
+                    className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50"
                     required
                     value={formData[field as keyof FormData]}
                     onChange={handleChange}
@@ -220,8 +206,8 @@ export default function EnquiryPage() {
                 variants={itemVariants}
                 type="email"
                 name="email"
-                placeholder="Your Email*"
-                className="w-full p-4 rounded-xl bg-gray-50/80 border border-green-500/30 focus:outline-none focus:border-green-600 focus:shadow-[0_0_15px_rgba(34,197,94,0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-green-500/50"
+                placeholder="Email Address*"
+                className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50"
                 required
                 value={formData.email}
                 onChange={handleChange}
@@ -234,10 +220,10 @@ export default function EnquiryPage() {
                   value={formData.country}
                   onChange={handleCountryChange}
                   required
-                  className="p-4 rounded-xl bg-gray-50/80 border border-green-500/30 focus:outline-none focus:border-green-600 focus:shadow-[0_0_15px_rgba(34,197,94,0.4)] text-gray-900 transition-all duration-300 hover:border-green-500/50"
+                  className="p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 transition-all duration-300 hover:border-[var(--color-green)]/50"
                 >
                   <option value="" className="bg-gray-50">
-                    Select Region
+                    Select Country
                   </option>
                   {countries.map((country) => (
                     <option
@@ -252,8 +238,8 @@ export default function EnquiryPage() {
                 <input
                   type="tel"
                   name="contact"
-                  placeholder="Contact Code*"
-                  className="w-full p-4 rounded-xl bg-gray-50/80 border border-green-500/30 focus:outline-none focus:border-green-600 focus:shadow-[0_0_15px_rgba(34,197,94,0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-green-500/50"
+                  placeholder="Phone Number*"
+                  className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50"
                   required
                   value={formData.contact}
                   onChange={handleChange}
@@ -264,8 +250,8 @@ export default function EnquiryPage() {
               <motion.textarea
                 variants={itemVariants}
                 name="message"
-                placeholder="Your Transmission*"
-                className="w-full p-4 rounded-xl bg-gray-50/80 border border-green-500/30 focus:outline-none focus:border-green-600 focus:shadow-[0_0_15px_rgba(34,197,94,0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-green-500/50 min-h-[160px] resize-none"
+                placeholder="Your Message*"
+                className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50 min-h-[160px] resize-none"
                 required
                 value={formData.message}
                 onChange={handleChange}
@@ -276,15 +262,15 @@ export default function EnquiryPage() {
                 variants={itemVariants}
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full p-4 bg-gradient-to-r from-green-500 to-green-700 text-white rounded-xl font-semibold relative overflow-hidden group shadow-[0_0_20px_rgba(34,197,94,0.5)] disabled:opacity-60"
-                whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(34,197,94,0.7)" }}
+                className="w-full p-4 bg-gradient-to-r from-[var(--color-green)] to-[var(--color-green)]/70 text-white rounded-xl font-semibold relative overflow-hidden group shadow-[0_0_20px_rgba(var(--color-green-rgb),0.5)] disabled:opacity-60"
+                whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(var(--color-green-rgb),0.7)" }}
                 whileTap={{ scale: 0.95 }}
               >
                 <span className="relative z-10">
-                  {isSubmitting ? "Transmitting..." : "Send Transmission"}
+                  {isSubmitting ? "Submitting..." : "Submit Enquiry"}
                 </span>
                 <motion.div
-                  className="absolute inset-0 bg-green-400/40"
+                  className="absolute inset-0 bg-[var(--color-green)]/40"
                   initial={{ scale: 0, opacity: 0 }}
                   whileHover={{ scale: 2, opacity: 1 }}
                   transition={{ duration: 0.4 }}
@@ -292,7 +278,7 @@ export default function EnquiryPage() {
               </motion.button>
             </form>
           </motion.div>
-        </div>       
+        </div>
       </motion.div>
     </div>
   );

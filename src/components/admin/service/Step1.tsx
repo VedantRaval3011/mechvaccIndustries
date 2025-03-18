@@ -1,44 +1,71 @@
 // app/components/AddService.tsx
 'use client';
 
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Service } from '@/types/service'; 
 import { useEffect, useState } from 'react';
 
-const createServiceSchema = () =>
-  z.object({
+// Define proper types for the form data
+type FormData = {
+  name: string;
+  displayTitle: string;
+  group: string;
+  price?: number;
+  priceLabel?: string;
+  description?: string;
+  displayImage?: FileList;
+  additionalImages?: FileList[];
+  video?: string;
+  pdf?: string;
+  seoKeywords?: string;
+};
+
+const createServiceSchema = () => {
+  // Check if we're on the client side
+  const isClient = typeof window !== 'undefined';
+  
+  // Create a custom file validator to handle both client and server environments
+  const FileListValidator = z.custom<FileList>((val) => {
+    // Skip validation on server side
+    if (!isClient) return true;
+    
+    // On client side, validate if it's a FileList
+    return val instanceof FileList;
+  });
+
+  return z.object({
     name: z.string().min(1, 'Service name is required'),
     displayTitle: z.string().min(1, 'Display title is required'),
     group: z.string().min(1, 'Group is required'),
     price: z.number().min(0, 'Price must be positive').optional(),
-    displayImage: z
-      .any()
-      .refine(
-        (files) => files instanceof FileList && files.length === 1,
-        'Display image is required'
-      )
-      .transform((files) => (files instanceof FileList ? files[0] : files)),
-    additionalImages: z.array(
-      z
-        .any()
-        .transform((files) => (files instanceof FileList ? files[0] : files))
-    ).optional(),
+    priceLabel: z.string().optional(),
+    description: z.string().optional(),
+    displayImage: FileListValidator.refine(
+      files => files instanceof FileList && files.length === 1,
+      'Display image is required'
+    ),
+    additionalImages: z.array(FileListValidator).default([]),
     video: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     pdf: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     seoKeywords: z.string().optional(),
   });
+};
 
 interface AddServiceProps {
   onNext: (id: string, data: Partial<Service>) => void;
 }
 
 export default function AddService({ onNext }: AddServiceProps) {
-  const [schema, setSchema] = useState(() => createServiceSchema());
+  const [schema, setSchema] = useState<z.ZodType<FormData> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [additionalImageInputs, setAdditionalImageInputs] = useState<number[]>([]);
+  const [displayImagePreview, setDisplayImagePreview] = useState<string | null>(null);
+  const [additionalImagePreviews, setAdditionalImagePreviews] = useState<string[]>([]);
 
   useEffect(() => {
+    // Set schema only on client side
     setSchema(createServiceSchema());
   }, []);
 
@@ -47,15 +74,15 @@ export default function AddService({ onNext }: AddServiceProps) {
     handleSubmit,
     formState: { errors },
     watch,
-    control,
-  } = useForm({
-    resolver: zodResolver(schema),
+  } = useForm<FormData>({
+    resolver: schema ? zodResolver(schema) : undefined,
     defaultValues: {
       name: '',
       displayTitle: '',
       group: '',
       price: undefined,
-      displayImage: undefined,
+      priceLabel: '',
+      description: '',
       additionalImages: [],
       video: '',
       pdf: '',
@@ -63,53 +90,144 @@ export default function AddService({ onNext }: AddServiceProps) {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: 'additionalImages',
-  });
-
   const displayImageFile = watch('displayImage');
   const additionalImagesFiles = watch('additionalImages');
   const videoUrl = watch('video');
   const pdfUrl = watch('pdf');
 
-  const onSubmit = async (data: any) => {
+  // Update display image preview when file changes
+  useEffect(() => {
+    if (displayImageFile && displayImageFile[0]) {
+      const objectUrl = URL.createObjectURL(displayImageFile[0]);
+      setDisplayImagePreview(objectUrl);
+      
+      // Clean up the URL when component unmounts
+      return () => URL.revokeObjectURL(objectUrl);
+    }
+  }, [displayImageFile]);
+
+  // Update additional image previews when files change
+  useEffect(() => {
+    if (additionalImagesFiles && additionalImagesFiles.length > 0) {
+      const newPreviews: string[] = [];
+      
+      for (let i = 0; i < additionalImagesFiles.length; i++) {
+        if (additionalImagesFiles[i] && additionalImagesFiles[i][0]) {
+          const objectUrl = URL.createObjectURL(additionalImagesFiles[i][0]);
+          newPreviews[i] = objectUrl;
+        }
+      }
+      
+      setAdditionalImagePreviews(newPreviews);
+      
+      // Clean up URLs when component unmounts
+      return () => {
+        newPreviews.forEach(url => {
+          if (url) URL.revokeObjectURL(url);
+        });
+      };
+    }
+  }, [additionalImagesFiles]);
+
+  const addAdditionalImageInput = () => {
+    setAdditionalImageInputs(prev => [...prev, Date.now()]);
+  };
+
+  const removeAdditionalImageInput = (index: number) => {
+    setAdditionalImageInputs(prev => prev.filter((_, i) => i !== index));
+    
+    // Revoke the URL if there's a preview
+    if (additionalImagePreviews[index]) {
+      URL.revokeObjectURL(additionalImagePreviews[index]);
+    }
+    
+    // Update previews array
+    setAdditionalImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     const formData = new FormData();
+    
+    // Add text fields
     formData.append('name', data.name);
     formData.append('displayTitle', data.displayTitle);
     formData.append('group', data.group);
-    formData.append('price', data.price?.toString() || '');
-    formData.append('displayImage', data.displayImage);
-    if (data.additionalImages) {
-      data.additionalImages.forEach((file: File) => formData.append('additionalImages', file));
+    if (data.price !== undefined) {
+      formData.append('price', data.price.toString());
     }
-    formData.append('video', data.video);
-    formData.append('pdf', data.pdf);
-    formData.append('seoKeywords', data.seoKeywords);
+    if (data.priceLabel) {
+      formData.append('priceLabel', data.priceLabel);
+    }
+    if (data.description) {
+      formData.append('description', data.description);
+    }
+    
+    // Add display image if provided
+    if (data.displayImage && data.displayImage[0]) {
+      formData.append('displayImage', data.displayImage[0]);
+    }
+    
+    // Add additional images if provided
+    if (data.additionalImages && data.additionalImages.length > 0) {
+      for (let i = 0; i < data.additionalImages.length; i++) {
+        const fileList = data.additionalImages[i];
+        if (fileList && fileList[0]) {
+          formData.append('additionalImages', fileList[0]);
+        }
+      }
+    }
+    
+    // Add optional fields
+    if (data.video) {
+      formData.append('video', data.video);
+    }
+    if (data.pdf) {
+      formData.append('pdf', data.pdf);
+    }
+    if (data.seoKeywords) {
+      formData.append('seoKeywords', data.seoKeywords);
+    }
 
-    const res = await fetch('/api/services/step1', {
-      method: 'POST',
-      body: formData,
-    });
-    const result = await res.json();
+    try {
+      const res = await fetch('/api/services/step1', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to create service');
+      }
+      
+      const result = await res.json();
 
-    const serviceData: Partial<Service> = {
-      name: data.name,
-      displayTitle: data.displayTitle,
-      group: data.group,
-      price: data.price,
-      displayImage: URL.createObjectURL(data.displayImage),
-      additionalImages: data.additionalImages
-        ? data.additionalImages.map((file: File) => URL.createObjectURL(file))
-        : [],
-      video: data.video,
-      pdf: data.pdf,
-    };
+      // Prepare service data to pass to the next step
+      const serviceData: Partial<Service> = {
+        name: data.name,
+        displayTitle: data.displayTitle,
+        group: data.group,
+        price: data.price,
+        priceLabel: data.priceLabel,
+        description: data.description,
+        displayImage: displayImagePreview || '',
+        additionalImages: additionalImagePreviews.filter(url => !!url),
+        video: data.video,
+        pdf: data.pdf,
+        seoKeywords: data.seoKeywords,
+      };
 
-    onNext(result.id, serviceData);
-    setIsLoading(false);
+      onNext(result.id, serviceData);
+    } catch (error) {
+      console.error('Error creating service:', error);
+      // Handle error (could add error state and display to user)
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (!schema) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-2 bg-white rounded-2xl">
@@ -134,7 +252,7 @@ export default function AddService({ onNext }: AddServiceProps) {
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
             disabled={isLoading}
           />
-          {errors.name && <p className="text-red-500 text-base mt-1">{errors.name.message}</p>}
+          {errors.name && <p className="text-red-500 text-base mt-1">{errors.name.message as string}</p>}
         </div>
 
         <div>
@@ -145,7 +263,7 @@ export default function AddService({ onNext }: AddServiceProps) {
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
             disabled={isLoading}
           />
-          {errors.displayTitle && <p className="text-red-500 text-base mt-1">{errors.displayTitle.message}</p>}
+          {errors.displayTitle && <p className="text-red-500 text-base mt-1">{errors.displayTitle.message as string}</p>}
         </div>
 
         <div>
@@ -156,7 +274,7 @@ export default function AddService({ onNext }: AddServiceProps) {
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
             disabled={isLoading}
           />
-          {errors.group && <p className="text-red-500 text-base mt-1">{errors.group.message}</p>}
+          {errors.group && <p className="text-red-500 text-base mt-1">{errors.group.message as string}</p>}
         </div>
 
         <div>
@@ -168,8 +286,31 @@ export default function AddService({ onNext }: AddServiceProps) {
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
             disabled={isLoading}
           />
-          {errors.price && <p className="text-red-500 text-base mt-1">{errors.price.message}</p>}
+          {errors.price && <p className="text-red-500 text-base mt-1">{errors.price.message as string}</p>}
         </div>
+      </div>
+
+      <div>
+        <label className="block text-base font-medium text-gray-700 mb-1">Price Label</label>
+        <input
+          {...register('priceLabel')}
+          placeholder="e.g., Monthly, One-time"
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
+          disabled={isLoading}
+        />
+        {errors.priceLabel && <p className="text-red-500 text-base mt-1">{errors.priceLabel.message as string}</p>}
+      </div>
+
+      <div>
+        <label className="block text-base font-medium text-gray-700 mb-1">Service Description</label>
+        <textarea
+          {...register('description')}
+          placeholder="Enter service description"
+          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
+          rows={4}
+          disabled={isLoading}
+        />
+        {errors.description && <p className="text-red-500 text-base mt-1">{errors.description.message as string}</p>}
       </div>
 
       <div>
@@ -181,10 +322,10 @@ export default function AddService({ onNext }: AddServiceProps) {
           className="w-full p-3 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-base file:font-semibold file:bg-[var(--color-green)] file:text-white hover:file:bg-[var(--color-green-gradient-end)] transition-all"
           disabled={isLoading}
         />
-        {errors.displayImage?.message && <p className="text-red-500 text-base mt-1">{errors.displayImage.message as string}</p>}
-        {displayImageFile && displayImageFile instanceof File && (
+        {errors.displayImage && <p className="text-red-500 text-base mt-1">{errors.displayImage.message as string}</p>}
+        {displayImagePreview && (
           <img
-            src={URL.createObjectURL(displayImageFile)}
+            src={displayImagePreview}
             alt="Display Preview"
             className="mt-4 h-40 w-auto rounded-lg shadow-md"
           />
@@ -193,8 +334,8 @@ export default function AddService({ onNext }: AddServiceProps) {
 
       <div>
         <label className="block text-base font-medium text-gray-700 mb-1">Additional Images</label>
-        {fields.map((field, index) => (
-          <div key={field.id} className="flex items-center gap-4 mb-4">
+        {additionalImageInputs.map((id, index) => (
+          <div key={id} className="flex items-center gap-4 mb-4">
             <input
               {...register(`additionalImages.${index}` as const)}
               type="file"
@@ -204,15 +345,15 @@ export default function AddService({ onNext }: AddServiceProps) {
             />
             <button
               type="button"
-              onClick={() => remove(index)}
+              onClick={() => removeAdditionalImageInput(index)}
               className="p-2 text-red-500 hover:text-red-700 transition-colors"
               disabled={isLoading}
             >
               ✕
             </button>
-            {additionalImagesFiles && additionalImagesFiles[index] instanceof File && (
+            {additionalImagePreviews[index] && (
               <img
-                src={URL.createObjectURL(additionalImagesFiles[index])}
+                src={additionalImagePreviews[index]}
                 alt="Additional Preview"
                 className="h-24 w-auto rounded-lg shadow-md"
               />
@@ -221,7 +362,7 @@ export default function AddService({ onNext }: AddServiceProps) {
         ))}
         <button
           type="button"
-          onClick={() => append(undefined)}
+          onClick={addAdditionalImageInput}
           className="mt-2 inline-flex items-center px-4 py-2 border border-[var(--color-green)] text-base font-medium rounded-full text-[var(--color-green)] hover:bg-[var(--color-green)] hover:text-white transition-all"
           disabled={isLoading}
         >
@@ -237,7 +378,7 @@ export default function AddService({ onNext }: AddServiceProps) {
           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
           disabled={isLoading}
         />
-        {errors.video && <p className="text-red-500 text-base mt-1">{errors.video.message}</p>}
+        {errors.video && <p className="text-red-500 text-base mt-1">{errors.video.message as string}</p>}
         {videoUrl ? (
           <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--color-green)] mt-2 block hover:underline">
             {videoUrl}
@@ -255,7 +396,7 @@ export default function AddService({ onNext }: AddServiceProps) {
           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
           disabled={isLoading}
         />
-        {errors.pdf && <p className="text-red-500 text-base mt-1">{errors.pdf.message}</p>}
+        {errors.pdf && <p className="text-red-500 text-base mt-1">{errors.pdf.message as string}</p>}
         {pdfUrl ? (
           <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--color-green)] mt-2 block hover:underline">
             {pdfUrl}
@@ -273,7 +414,7 @@ export default function AddService({ onNext }: AddServiceProps) {
           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
           disabled={isLoading}
         />
-        {errors.seoKeywords && <p className="text-red-500 text-base mt-1">{errors.seoKeywords.message}</p>}
+        {errors.seoKeywords && <p className="text-red-500 text-base mt-1">{errors.seoKeywords.message as string}</p>}
         <p className="text-gray-500 text-base mt-2">e.g., service, offer, deal</p>
       </div>
 

@@ -6,14 +6,13 @@ import MobileViewFooter from "../home/MobileFooter";
 import PolicyFooter from "../home/PolicyFooter";
 
 const Footer = () => {
-  
   return (
     <div className="relative h-[85vh] lg:h-[60vh] xl:h-[35vh] flex flex-col">
       <div className="flex-grow flex flex-col">
         <div className="flex pt-6 justify-between px-2 text-white bg-large-green-gradient">
           <div className="flex flex-col gap-9">
             <h1 className="lg:text-xl">
-              "Lorem ipsum dolor sit amet, <br /> consectetur adipiscing elit."{" "}
+              Lorem ipsum dolor sit amet, <br /> consectetur adipiscing elit.{" "}
             </h1>
             <div className="flex gap-4">
               <Twitter />
@@ -24,7 +23,8 @@ const Footer = () => {
           <div className="flex flex-col justify-evenly gap-6 items-center h-32 mr-2 ">
             <Link
               href="/about"
-              className="bg-white rounded-2xl shadow-lg text-sm p-2">
+              className="bg-white rounded-2xl shadow-lg text-sm p-2"
+            >
               <button className="text-black xl:text-xl">About Us</button>
             </Link>
             <div className="flex mr-2 gap-1 justify-center items-center">
@@ -61,11 +61,18 @@ const Footer = () => {
               </ul>
             </div>
             <div>
-              <h2 >Contact</h2>
+              <h2>Contact</h2>
               <ul className="py-2">
-                <li className="flex gap-1"> <Phone size={16} /> 123-456-7890</li>
-                <li className="flex gap-1"><Mail size={16}/> example@mail.com</li>
-                <li className="flex gap-1"><House size={16} /> 123 Street, City</li>
+                <li className="flex gap-1">
+                  {" "}
+                  <Phone size={16} /> 123-456-7890
+                </li>
+                <li className="flex gap-1">
+                  <Mail size={16} /> example@mail.com
+                </li>
+                <li className="flex gap-1">
+                  <House size={16} /> 123 Street, City
+                </li>
               </ul>
             </div>
           </div>

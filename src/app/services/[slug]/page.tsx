@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Service } from "@/types/service"; // Assuming a Service type exists
+import { Service } from "@/types/service";
 import { 
   ChevronLeft, 
   Star, 
@@ -31,9 +31,17 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeImage, setActiveImage] = useState<string>("");
   const [isShareMenuOpen, setIsShareMenuOpen] = useState<boolean>(false);
-  const shareMenuRef = useRef<HTMLDivElement>(null);
   const [isInterestingLoading, setIsInterestingLoading] = useState<boolean>(false);
+  const [showInterestForm, setShowInterestForm] = useState<boolean>(false);
+  const [queryValues, setQueryValues] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showThankYou, setShowThankYou] = useState<boolean>(false);
+  const [defaultQueries] = useState([
+    { title: 'Name', type: 'string' },
+    { title: 'Phone Number', type: 'string' },
+  ]);
 
+  const shareMenuRef = useRef<HTMLDivElement>(null);
   const resolvedParams = use(params);
   const slug = resolvedParams.slug;
 
@@ -61,7 +69,6 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
     try {
       const res = await fetch(`/api/services?featured=true&limit=4`);
       if (!res.ok) throw new Error("Failed to fetch interesting services");
-      
       const data = await res.json();
       const servicesArray = Array.isArray(data) ? data : [];
       setInterestingServices(servicesArray.slice(0, 4) as ExtendedService[]);
@@ -78,11 +85,8 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
         setIsShareMenuOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const copyLinkToClipboard = () => {
@@ -94,27 +98,19 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
 
   const shareViaEmail = () => {
     if (!service) return;
-    
     const subject = encodeURIComponent(`Check out this service: ${service.displayTitle}`);
     const body = encodeURIComponent(
-      `I found this amazing service and thought you might be interested:\n\n` +
-      `${service.displayTitle}\n\n` +
-      `${window.location.href}\n\n` +
-      `Price: $${service.price || "Contact for pricing"}\n\n` 
+      `I found this amazing service:\n\n${service.displayTitle}\n\n${window.location.href}\n\nPrice: $${service.price || "Contact for pricing"} ${service.priceLabel || ""}\n\nDescription: ${service.description || "No description available"}\n\n`
     );
-    
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
     setIsShareMenuOpen(false);
   };
 
   const shareToSocialMedia = (platform: "facebook" | "whatsapp") => {
     if (!service) return;
-    
     const url = encodeURIComponent(window.location.href);
-    const title = encodeURIComponent(`Check out this service: ${service.displayTitle}`);
-    
+    const title = encodeURIComponent(`Check out this service: ${service.displayTitle} - $${service.price || "Contact for pricing"} ${service.priceLabel || ""}`);
     let shareUrl = "";
-    
     switch (platform) {
       case "facebook":
         shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
@@ -123,12 +119,67 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
         shareUrl = `https://api.whatsapp.com/send?text=${title}%20${url}`;
         break;
     }
-    
-    if (shareUrl) {
-      window.open(shareUrl, "_blank");
-    }
-    
+    if (shareUrl) window.open(shareUrl, "_blank");
     setIsShareMenuOpen(false);
+  };
+
+  const handleQueryChange = (queryTitle: string, value: string) => {
+    setQueryValues(prev => ({
+      ...prev,
+      [queryTitle]: value,
+    }));
+  };
+
+  const submitInterest = async () => {
+    if (!service) return;
+    
+    try {
+      setIsSubmitting(true);
+      const allQueries = [...defaultQueries, ...(service.queries || [])];
+      const uniqueQueries = Array.from(
+        new Map(allQueries.map(query => [query.title, query])).values()
+      );
+      const queriesWithValues = uniqueQueries.map(query => ({
+        ...query,
+        value: queryValues[query.title] || '',
+      }));
+
+      const updateResponse = await fetch(`/api/services/step3/${service._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queries: queriesWithValues }),
+      });
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        throw new Error(errorData.error || 'Failed to update service queries');
+      }
+
+      const emailResponse = await fetch('/api/send-interest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: service.id, // Using productId generically, could be serviceId
+          productTitle: service.displayTitle,
+          userQueries: queriesWithValues,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        throw new Error(errorData.error || 'Failed to send email');
+      }
+
+      setShowInterestForm(false);
+      setShowThankYou(true);
+      setQueryValues({});
+      setTimeout(() => setShowThankYou(false), 5000);
+    } catch (error) {
+      console.error('Error submitting interest:', error);
+      toast.error('Failed to submit interest. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoading) {
@@ -180,7 +231,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
   }
 
   const pageTitle = `${service.displayTitle} - ${service.group || "Service"}`;
-  const metaDescription = `Premium ${service.group || "service"} priced at $${service.price || "Contact for pricing"}. Learn more!`;
+  const metaDescription = `${service.description || "Premium"} ${service.group || "service"} priced at $${service.price || "Contact for pricing"} ${service.priceLabel || ""}. Learn more!`;
   const canonicalUrl = `https://yourdomain.com/services/${slug}`;
   const keywords = service.seoKeywords || `${service.displayTitle}, ${service.group}, service online`;
 
@@ -256,7 +307,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.2 }}
                     >
-                      ${service.price}
+                      ${service.price} {service.priceLabel || ""}
                     </motion.div>
                   )}
                 </motion.div>
@@ -291,7 +342,6 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                     <p className="text-sm font-medium text-[var(--color-green)] mb-2">
                       {service.group || "Uncategorized"}
                     </p>
-                    
                     <div className="relative" ref={shareMenuRef}>
                       <motion.button
                         whileHover={{ scale: 1.05 }}
@@ -302,7 +352,6 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                         <Share2 className="h-4 w-4" />
                         <span className="text-sm">Share</span>
                       </motion.button>
-                      
                       <AnimatePresence>
                         {isShareMenuOpen && (
                           <motion.div
@@ -351,15 +400,29 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                   <h1 className="text-3xl font-bold text-[var(--color-black)] mb-3">
                     {service.displayTitle}
                   </h1>
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
                     <Star className="h-5 w-5 text-amber-400 fill-amber-400" />
                     <span className="text-gray-600">Premium Service</span>
+                  </div>
+
+                  {/* Added Price, Price Label, and Description */}
+                  <div className="mb-4">
+                    {service.price ? (
+                      <div className="text-lg font-semibold text-[var(--color-green)]">
+                        ${service.price} {service.priceLabel && <span className="font-normal text-gray-700">{service.priceLabel}</span>}
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-gray-700">Contact for Pricing</div>
+                    )}
+                    {service.description && (
+                      <p className="mt-2 text-gray-700">{service.description}</p>
+                    )}
                   </div>
 
                   {service.specifications && Array.isArray(service.specifications) && service.specifications.length > 0 && (
                     <div className="mb-6">
                       <h3 className="text-lg font-semibold text-[var(--color-black)] mb-3">
-                        specifications
+                        Specifications
                       </h3>
                       <ul className="space-y-2">
                         {service.specifications.map((spec, index) => (
@@ -388,33 +451,112 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                   )}
                 </div>
 
-                <div className="flex gap-4 flex-wrap">
-                  {service.video && (
-                    <motion.a
+                <div className="space-y-4">
+                  <div className="flex gap-4 flex-wrap">
+                    {service.video && (
+                      <motion.a
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        href={service.video}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200 transition-all"
+                      >
+                        <Play className="h-5 w-5" />
+                        Watch Video
+                      </motion.a>
+                    )}
+                    {service.pdf && (
+                      <motion.a
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        href={service.pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200 transition-all"
+                      >
+                        <Download className="h-5 w-5" />
+                        Download PDF
+                      </motion.a>
+                    )}
+                    <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      href={service.video}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200 transition-all"
+                      onClick={() => setShowInterestForm(true)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-green)] text-white rounded-xl font-medium hover:bg-green-600"
                     >
-                      <Play className="h-5 w-5" />
-                      Watch Video
-                    </motion.a>
-                  )}
-                  {service.pdf && (
-                    <motion.a
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      href={service.pdf}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200 transition-all"
-                    >
-                      <Download className="h-5 w-5" />
-                      Download PDF
-                    </motion.a>
-                  )}
+                      I&apos;m Interested
+                    </motion.button>
+                  </div>
+
+                  <AnimatePresence>
+                    {showInterestForm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="p-4 bg-gray-50 rounded-xl relative"
+                      >
+                        {Array.from(
+                          new Map([...defaultQueries, ...(service.queries || [])].map(query => [query.title, query])).values()
+                        ).map((query, idx) => (
+                          <div key={idx} className="mb-3">
+                            <label className="block text-sm font-medium mb-1">
+                              {query.title}
+                            </label>
+                            <input
+                              type={query.type === 'number' ? 'number' : 'text'}
+                              value={queryValues[query.title] || ''}
+                              onChange={(e) => handleQueryChange(query.title, e.target.value)}
+                              className="w-full p-2 border rounded-md"
+                              placeholder={`Enter ${query.title}`}
+                              required={query.title === 'Name' || query.title === 'Phone Number'}
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={submitInterest}
+                            disabled={isSubmitting}
+                            className="flex-1 px-4 py-2 bg-[var(--color-green)] text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isSubmitting ? (
+                              <motion.span
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                              />
+                            ) : (
+                              'Submit'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setShowInterestForm(false)}
+                            disabled={isSubmitting}
+                            className="flex-1 px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                    {showThankYou && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-center"
+                      >
+                        <h3 className="text-lg font-semibold text-green-700">
+                          Thank You for Reaching Out!
+                        </h3>
+                        <p className="text-green-600">
+                          We will contact you soon.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
@@ -458,10 +600,12 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                           <h3 className="text-lg font-semibold text-[var(--color-black)] mb-2 line-clamp-1">
                             {interestingService.displayTitle}
                           </h3>
-                          {interestingService.price && (
+                          {interestingService.price ? (
                             <p className="text-sm font-bold text-[var(--color-green)]">
-                              ${interestingService.price}
+                              ${interestingService.price} {interestingService.priceLabel || ""}
                             </p>
+                          ) : (
+                            <p className="text-sm font-bold text-gray-700">Contact for Pricing</p>
                           )}
                         </div>
                       </Link>

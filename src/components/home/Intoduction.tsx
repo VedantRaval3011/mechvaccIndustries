@@ -40,14 +40,14 @@ const Intoduction = () => {
       <div className="text-xl md:text-2xl lg:text-3xl xl:text-5xl md:mt-24 px-3 md:px-0 uppercase mt-2 flex flex-col gap-0.5 z-20 3xl:text-6xl">
         <div >
           We Provide Effective and <br />{" "}
-          <span className="text-green font-bold">
+          <span className="text-[var(--color-green)] font-bold">
             TOP-NOTCH <span className={`transition-opacity duration-500 ${textFade ? 'opacity-100' : 'opacity-0'}`}>{texts[textNumber]}</span>
           </span>{" "}
           <br /> Services
         </div>
         <div className="font-medium">On-time. On-BUDGET. ON-POINT.</div>
         <div>
-          <button className={`cursor-pointer flex gap-1 2xl:gap-4 bg-green-gradient text-white px-3 py-2 rounded-3xl text-base mt-1 uppercase xl:text-xl xl:px-4 3xl:px-6 xl:py-2.5 3xl:py-4 xl:mt-7 3xl:text-2xl ${styles.hoverAnimation} `}>
+          <button className={`cursor-pointer flex gap-1 2xl:gap-4 bg-[var(--color-green)] text-white px-3 py-2 rounded-3xl text-base mt-1 uppercase xl:text-xl xl:px-4 3xl:px-6 xl:py-2.5 3xl:py-4 xl:mt-7 3xl:text-2xl ${styles.hoverAnimation} `}>
             <div>Contact US</div>
             <Send className={`${styles.send} 3xl:size-7`} />
             {/* <Send className={`${styles.send} hidden 2xl:block`} size={45}/> */}

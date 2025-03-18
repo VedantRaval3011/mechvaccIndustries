@@ -16,6 +16,8 @@ const serviceSchema = new mongoose.Schema({
   displayTitle: String,
   group: String,
   price: Number,
+  priceLabel: String,
+  description: String,
   displayImage: String,
   additionalImages: [String],
   video: String,

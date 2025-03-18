@@ -21,11 +21,13 @@ export interface Product {
   video?: string;
   pdf?: string;
   seoKeywords?: string;
+  description?: string;
+  priceLabel?: string;
   specifications?: Array<{
     title: string;
     value: string;
     _id?: string;
   }>;
-  queries?: any[];
+  queries?: Query[];
   __v?: number;
 }

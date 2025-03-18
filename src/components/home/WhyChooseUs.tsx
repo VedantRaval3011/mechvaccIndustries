@@ -70,7 +70,7 @@ const WhyChooseUs = () => {
     return () => window.removeEventListener("resize", updateMaxScroll);
   }, []);
 
-  const handleDrag = (event: any, info: { delta: { x: number } }) => {
+  const handleDrag = (event: DragEvent, info: { delta: { x: number } }) => {
     const newX = x.get() + info.delta.x;
     x.set(clamp(newX, -maxScroll, 0));
   };
@@ -102,16 +102,16 @@ const WhyChooseUs = () => {
   };
 
   return (
-    <div className="bg-grayBg flex flex-col xl:flex-row lg:flex-row xl:h-3/4 lg:p-10 gap-8 xl:gap-0 3xl:gap-40">
+    <div className="bg-[var(--color-gray-bg)] flex flex-col xl:flex-row lg:flex-row xl:h-3/4 lg:p-10 gap-8 xl:gap-0 3xl:gap-40">
       <div className="mx-3 mt-10 flex flex-col gap-3 xl:pl-20 xl:mt-16">
         <h1 className="text-4xl xl:text-6xl md:text-5xl">
           Why Choose <br />
           <span className="relative font-semibold">
             MECHVACC{" "}
-            <span className="inline-block bg-gradient-to-r from-greenGradientStart to-greenGradientEnd text-transparent bg-clip-text">
+            <span className="inline-block bg-gradient-to-r from-[#0b946d] to-[#4EB49C] text-transparent bg-clip-text">
               ?
             </span>
-            <span className="absolute left-[1px] text-green">MECHVACC</span>
+            <span className="absolute left-[1px] text-[var(--color-green)]">MECHVACC</span>
           </span>
         </h1>
         <div className="text-2xl 3xl:max-w-96">

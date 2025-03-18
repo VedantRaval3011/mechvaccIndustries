@@ -2,6 +2,7 @@ import { Ubuntu } from 'next/font/google';
 import Navbar from "@/components/reuseables/navbar/Navbar";
 import "./globals.css";
 import Footer from "@/components/reuseables/footer/Footer";
+import { ToastContainer } from 'react-toastify';
 
 export const metadata = {
   title: "MechVacc",
@@ -11,7 +12,7 @@ export const metadata = {
 const ubuntu = Ubuntu({
   weight: ['400', '500', '700'], 
   subsets: ['latin'], 
-  display: 'swap',    // 'swap' avoids invisible text during font loading
+  display: 'swap', 
 });
 
 interface RootLayoutProps {
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body className={`${ubuntu.className} antialiased`}>
         <Navbar/>
         {children}  
+        <ToastContainer position="top-right" autoClose={5000} />
         <Footer/>
       </body>
     </html>

@@ -2,47 +2,44 @@
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import dbConnect from '@/lib/db';
 import Product from '@/models/products.model';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  await dbConnect();
-  
+export async function GET(request: NextRequest) {
   try {
-    // Await the params Promise to get the id
-    const { id } = await params;
-    
-    // Check if the ID is a valid MongoDB ObjectId
+    await dbConnect();
+    const id = request.nextUrl.pathname.split('/').pop();
+
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "Invalid product ID format" }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 });
     }
 
     const product = await Product.findById(id);
-    
+
     if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
+
     return NextResponse.json(product);
   } catch (error) {
-    console.error("Error fetching product:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error('Error fetching product:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch product', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest) {
   try {
     await dbConnect();
-    
-    // Await the params Promise
-    const { id } = await params;
+    const id = request.nextUrl.pathname.split('/').pop();
+    const data = await request.formData();
 
-    // Check if the ID is a valid MongoDB ObjectId
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "Invalid product ID format" }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 });
     }
 
-    const data = await request.formData();
- 
     const toBase64 = async (file: File): Promise<string> => {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
@@ -66,32 +63,48 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       })
     );
 
+    // Log data for debugging
+    console.log('Updating product with data:', {
+      name: data.get('name'),
+      displayTitle: data.get('displayTitle'),
+      group: data.get('group'),
+      price: data.get('price'),
+      priceLabel: data.get('priceLabel'),
+      description: data.get('description'),
+      displayImage: displayImageUrl,
+      additionalImages: additionalImageUrls,
+      video: data.get('video'),
+      pdf: data.get('pdf'),
+      seoKeywords: data.get('seoKeywords'),
+    });
+
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
       {
-        name: data.get('name'),
-        displayTitle: data.get('displayTitle'),
-        group: data.get('group'),
-        price: parseInt(data.get('price') as string, 10),
+        name: data.get('name') as string,
+        displayTitle: data.get('displayTitle') as string,
+        group: data.get('group') as string,
+        price: data.get('price') ? parseInt(data.get('price') as string, 10) : undefined,
+        priceLabel: (data.get('priceLabel') as string) || '',
+        description: (data.get('description') as string) || '',
         displayImage: displayImageUrl,
         additionalImages: additionalImageUrls,
-        video: data.get('video'),
-        pdf: data.get('pdf'),
-        seoKeywords: data.get('seoKeywords'),
+        video: data.get('video') as string || undefined,
+        pdf: data.get('pdf') as string || undefined,
+        seoKeywords: data.get('seoKeywords') as string || undefined,
       },
-      { 
-        new: true,
-        runValidators: true
-      }
+      { new: true, runValidators: true }
     );
 
     if (!updatedProduct) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    console.log('Updated product:', updatedProduct);
     return NextResponse.json(updatedProduct);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error updating product:', errorMessage);
     return NextResponse.json(
       { error: 'Failed to update product', details: errorMessage },
       { status: 500 }
@@ -99,16 +112,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest) {
   try {
     await dbConnect();
-    
-    // Await the params Promise
-    const { id } = await params;
+    const id = request.nextUrl.pathname.split('/').pop();
 
-    // Check if the ID is a valid MongoDB ObjectId
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "Invalid product ID format" }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 });
     }
 
     const deletedProduct = await Product.findByIdAndDelete(id);
@@ -117,12 +127,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'Product deleted successfully',
-      id: id 
+      id,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error deleting product:', errorMessage);
     return NextResponse.json(
       { error: 'Failed to delete product', details: errorMessage },
       { status: 500 }

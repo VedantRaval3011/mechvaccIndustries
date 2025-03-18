@@ -22,7 +22,16 @@ export default function ProductPreview({ product }: ProductPreviewProps) {
           <p className="text-gray-600">{product.name || 'No name'}</p>
         </div>
         
-        <p className="text-gray-600">Price: ${product.price || 0}</p>
+        <p className="text-gray-600">
+          Price: ${product.price || 0}{product.priceLabel ? ` (${product.priceLabel})` : ""}
+        </p>
+
+        {product.description && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-700">Description:</h4>
+            <p className="text-gray-600">{product.description}</p>
+          </div>
+        )}
         
         {product.group && <p className="text-gray-600">Group: {product.group}</p>}
         

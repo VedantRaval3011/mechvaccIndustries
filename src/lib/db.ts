@@ -7,15 +7,24 @@ if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable');
 }
 
+// Define the shape of the cached object
 interface Cached {
   conn: mongoose.Connection | null;
   promise: Promise<mongoose.Connection> | null;
 }
 
-let cached: Cached = global.mongoose;
+// Extend the global type to include the mongoose property
+declare global {
+  // eslint-disable-next-line no-var
+  var mongoose: Cached | undefined; // Use `var` for global declarations
+}
 
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+// Initialize cached from global.mongoose or set it if it doesn't exist
+const cached: Cached = global.mongoose ?? { conn: null, promise: null };
+
+// Assign it back to global.mongoose if it wasn't already set
+if (!global.mongoose) {
+  global.mongoose = cached;
 }
 
 async function dbConnect(): Promise<mongoose.Connection> {
@@ -32,6 +41,7 @@ async function dbConnect(): Promise<mongoose.Connection> {
       return mongoose.connection;
     });
   }
+
   cached.conn = await cached.promise;
   return cached.conn;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, FieldError } from 'react-hook-form';
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Product } from "@/types/product";
@@ -16,6 +16,8 @@ const updateSchema = z.object({
   displayTitle: z.string().min(1, "Display title is required"),
   group: z.string().min(1, "Group is required"),
   price: z.number().min(0, "Price must be positive"),
+  priceLabel: z.string().optional(), // New field
+  description: z.string().optional(),
   displayImage: z.any().optional(),
   additionalImages: z
     .array(
@@ -64,9 +66,9 @@ export default function ProductUpdateForm({
   const [previewDisplayImage, setPreviewDisplayImage] = useState<string>(
     product.displayImage || ""
   );
-  const [previewAdditionalImages, setPreviewAdditionalImages] = useState<string[]>(
-    product.additionalImages || []
-  );
+  const [previewAdditionalImages, setPreviewAdditionalImages] = useState<
+    string[]
+  >(product.additionalImages || []);
 
   const {
     register,
@@ -82,6 +84,8 @@ export default function ProductUpdateForm({
       displayTitle: product.displayTitle,
       group: product.group,
       price: product.price,
+      priceLabel: product.priceLabel,
+      description: product.description,
       displayImage: undefined,
       additionalImages: product.additionalImages
         ? product.additionalImages.map((url: string) => ({ url }))
@@ -94,17 +98,29 @@ export default function ProductUpdateForm({
     },
   });
 
-  const { fields: additionalImageFields, append: appendImage, remove: removeImage } = useFieldArray({
+  const {
+    fields: additionalImageFields,
+    append: appendImage,
+    remove: removeImage,
+  } = useFieldArray({
     control,
     name: "additionalImages",
   });
 
-  const { fields: specFields, append: appendSpec, remove: removeSpec } = useFieldArray({
+  const {
+    fields: specFields,
+    append: appendSpec,
+    remove: removeSpec,
+  } = useFieldArray({
     control,
     name: "specifications",
   });
 
-  const { fields: queryFields, append: appendQuery, remove: removeQuery } = useFieldArray({
+  const {
+    fields: queryFields,
+    append: appendQuery,
+    remove: removeQuery,
+  } = useFieldArray({
     control,
     name: "queries",
   });
@@ -115,6 +131,8 @@ export default function ProductUpdateForm({
       displayTitle: product.displayTitle,
       group: product.group,
       price: product.price,
+      priceLabel: product.priceLabel,
+      description: product.description,
       displayImage: undefined,
       additionalImages: product.additionalImages
         ? product.additionalImages.map((url: string) => ({ url }))
@@ -161,6 +179,8 @@ export default function ProductUpdateForm({
       formData.append("displayTitle", data.displayTitle);
       formData.append("group", data.group);
       formData.append("price", data.price.toString());
+      formData.append("priceLabel", data.priceLabel || ""); // New field
+      formData.append("description", data.description || "");
       if (data.displayImage && data.displayImage.length > 0) {
         formData.append("displayImage", data.displayImage[0]);
       } else {
@@ -188,8 +208,6 @@ export default function ProductUpdateForm({
         throw new Error("Failed to update main product details");
       }
 
-      const updatedMainProduct: Product = await mainResponse.json();
-
       const specResponse = await fetch(`/api/products/step2/${product._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -199,8 +217,6 @@ export default function ProductUpdateForm({
       if (!specResponse.ok) {
         throw new Error("Failed to update specifications");
       }
-
-      const updatedProductWithSpecs: Product = await specResponse.json();
 
       const queryResponse = await fetch(`/api/products/step3/${product._id}`, {
         method: "PUT",
@@ -224,6 +240,8 @@ export default function ProductUpdateForm({
         displayTitle: updatedProduct.displayTitle,
         group: updatedProduct.group,
         price: updatedProduct.price,
+        priceLabel: updatedProduct.priceLabel,
+        description: updatedProduct.description,
         displayImage: undefined,
         additionalImages: updatedProduct.additionalImages
           ? updatedProduct.additionalImages.map((url) => ({ url }))
@@ -270,7 +288,9 @@ export default function ProductUpdateForm({
 
   return (
     <div className="space-y-8 p-2 bg-white rounded-2xl ">
-      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">Update Product</h2>
+      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">
+        Update Product
+      </h2>
 
       {(isLoading || isDeleting) && (
         <div className="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
@@ -302,7 +322,9 @@ export default function ProductUpdateForm({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Product Name
+            </label>
             <input
               {...register("name")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
@@ -314,31 +336,41 @@ export default function ProductUpdateForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Display Title</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Display Title
+            </label>
             <input
               {...register("displayTitle")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
             {errors.displayTitle && (
-              <p className="text-red-500 text-sm mt-1">{errors.displayTitle.message}</p>
+              <p className="text-red-500 text-sm mt-1">
+                {errors.displayTitle.message}
+              </p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Group
+            </label>
             <input
               {...register("group")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
             {errors.group && (
-              <p className="text-red-500 text-sm mt-1">{errors.group.message}</p>
+              <p className="text-red-500 text-sm mt-1">
+                {errors.group.message}
+              </p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Price
+            </label>
             <input
               {...register("price", { valueAsNumber: true })}
               type="number"
@@ -347,13 +379,48 @@ export default function ProductUpdateForm({
               disabled={isLoading || isDeleting}
             />
             {errors.price && (
-              <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>
+              <p className="text-red-500 text-sm mt-1">
+                {errors.price.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Price Label
+            </label>
+            <input
+              {...register("priceLabel")}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+              disabled={isLoading || isDeleting}
+            />
+            {errors.priceLabel && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.priceLabel.message}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <input
+              {...register("description")}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+              disabled={isLoading || isDeleting}
+            />
+            {errors.description && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.description.message}
+              </p>
             )}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Display Image</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Display Image
+          </label>
           <input
             {...register("displayImage")}
             type="file"
@@ -371,7 +438,9 @@ export default function ProductUpdateForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Images</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Additional Images
+          </label>
           {additionalImageFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <input
@@ -409,7 +478,9 @@ export default function ProductUpdateForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Video URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Video URL
+          </label>
           <input
             {...register("video")}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
@@ -431,7 +502,9 @@ export default function ProductUpdateForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">PDF URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            PDF URL
+          </label>
           <input
             {...register("pdf")}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
@@ -454,7 +527,9 @@ export default function ProductUpdateForm({
 
         {/* New SEO Keywords Field */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">SEO Keywords</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            SEO Keywords
+          </label>
           <input
             {...register("seoKeywords")}
             placeholder="Enter SEO keywords (comma-separated)"
@@ -462,13 +537,19 @@ export default function ProductUpdateForm({
             disabled={isLoading || isDeleting}
           />
           {errors.seoKeywords && (
-            <p className="text-red-500 text-sm mt-1">{errors.seoKeywords.message}</p>
+            <p className="text-red-500 text-sm mt-1">
+              {errors.seoKeywords.message}
+            </p>
           )}
-          <p className="text-gray-500 text-sm mt-2">e.g., product, sale, discount</p>
+          <p className="text-gray-500 text-sm mt-2">
+            e.g., product, sale, discount
+          </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Specifications</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Specifications
+          </label>
           {specFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <div className="flex-1">
@@ -479,7 +560,9 @@ export default function ProductUpdateForm({
                   disabled={isLoading || isDeleting}
                 />
                 {errors.specifications?.[index]?.title && (
-                  <p className="text-red-500 text-sm mt-1">{errors.specifications[index]?.title?.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.specifications[index]?.title?.message}
+                  </p>
                 )}
               </div>
               <div className="flex-1">
@@ -490,7 +573,9 @@ export default function ProductUpdateForm({
                   disabled={isLoading || isDeleting}
                 />
                 {errors.specifications?.[index]?.value && (
-                  <p className="text-red-500 text-sm mt-1">{errors.specifications[index]?.value?.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.specifications[index]?.value?.message}
+                  </p>
                 )}
               </div>
               <button
@@ -514,7 +599,9 @@ export default function ProductUpdateForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Queries</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Queries
+          </label>
           {queryFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <div className="flex-1">
@@ -525,7 +612,9 @@ export default function ProductUpdateForm({
                   disabled={isLoading || isDeleting}
                 />
                 {errors.queries?.[index]?.title && (
-                  <p className="text-red-500 text-sm mt-1">{errors.queries[index]?.title?.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.queries[index]?.title?.message}
+                  </p>
                 )}
               </div>
               <div className="flex-1">
@@ -537,9 +626,12 @@ export default function ProductUpdateForm({
                   <option value="number">Number</option>
                   <option value="string">String</option>
                 </select>
-                {errors.queries?.[index]?.type && typeof errors.queries[index]?.type === "object" && (
-                  <p className="text-red-500 text-sm mt-1">{(errors.queries[index]?.type as any).message}</p>
-                )}
+                {errors.queries?.[index]?.type &&
+                  typeof errors.queries[index]?.type === "object" && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {(errors.queries[index]?.type as FieldError).message}
+                    </p>
+                  )}
               </div>
               <button
                 type="button"

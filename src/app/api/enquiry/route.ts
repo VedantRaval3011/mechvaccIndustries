@@ -1,8 +1,10 @@
+// app/api/enquiry/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import * as z from "zod";
+import mongoose from 'mongoose';
+import Enquiry  from '@/models/enquiry.model'
 
-// Define the schema for form data validation
 const enquirySchema = z.object({
   firstname: z.string().min(2, "First name must be at least 2 characters"),
   lastname: z.string().min(2, "Last name must be at least 2 characters"),
@@ -12,10 +14,8 @@ const enquirySchema = z.object({
   country: z.string().min(2, "Please select a country"),
 });
 
-// Type definition for the form data
 type EnquiryData = z.infer<typeof enquirySchema>;
 
-// Configure Nodemailer transporter
 const createTransporter = () => {
   return nodemailer.createTransport({
     service: "gmail",
@@ -26,7 +26,6 @@ const createTransporter = () => {
   });
 };
 
-// Email template
 const generateEmailHTML = (data: EnquiryData) => {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f2f8f6; border-radius: 8px;">
@@ -47,14 +46,19 @@ const generateEmailHTML = (data: EnquiryData) => {
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse and validate request body
     const body = await request.json();
     const validatedData = enquirySchema.parse(body);
 
-    // Create email transporter
-    const transporter = createTransporter();
+    // Connect to MongoDB
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(process.env.MONGODB_URI as string);
+    }
 
-    // Email options
+    // Save to MongoDB
+    const enquiry = new Enquiry(validatedData);
+    await enquiry.save();
+
+    const transporter = createTransporter();
     const mailOptions = {
       from: `"Enquiry Form" <${process.env.EMAIL_ADMIN}>`,
       to: process.env.EMAIL_ADMIN,
@@ -62,7 +66,6 @@ export async function POST(request: NextRequest) {
       html: generateEmailHTML(validatedData),
     };
 
-    // Send email
     await transporter.sendMail(mailOptions);
 
     return NextResponse.json(
@@ -73,7 +76,6 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    // Handle validation errors
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -85,7 +87,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle other errors
     console.error("Error sending enquiry email:", error);
     return NextResponse.json(
       {
@@ -98,7 +99,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle non-POST requests
 export async function GET() {
   return NextResponse.json(
     {
