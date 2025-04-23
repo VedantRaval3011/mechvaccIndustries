@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from "react";
 import { motion, useMotionValue } from "framer-motion";
 import { List } from "lucide-react";
 import Image from "next/image";
-import styles from "./styles/whyChooseUs.module.css";
+import styles from "./styles/WhyChooseUs.module.css";
 
 const data = [
   {
