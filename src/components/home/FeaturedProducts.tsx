@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { Product } from "@/types/product";
 const FeaturedProducts = () => {
   const [startIndex, setStartIndex] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [direction, setDirection] = useState(0); // Track direction for animation
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -25,10 +26,12 @@ const FeaturedProducts = () => {
   }, []);
 
   const handleNextSlide = () => {
+    setDirection(1); // Moving right
     setStartIndex((prev) => (prev + 1) % featuredProducts.length);
   };
 
   const handlePrevSlide = () => {
+    setDirection(-1); // Moving left
     setStartIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
   };
 
@@ -50,11 +53,23 @@ const FeaturedProducts = () => {
     );
   };
 
-  // Simplified slide animation
+  // Animation variants for sliding and fading
   const slideVariants = {
-    hidden: { opacity: 0, x: 50 },
-    visible: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -50 },
+    hidden: (direction: number) => ({
+      opacity: 0,
+      x: direction > 0 ? 100 : -100, // Incoming from right or left
+      transition: { duration: 0.3, ease: "easeInOut" },
+    }),
+    visible: {
+      opacity: 1,
+      x: 0,
+      transition: { duration: 0.3, ease: "easeInOut" },
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      x: direction > 0 ? -100 : 100, // Outgoing to left or right
+      transition: { duration: 0.3, ease: "easeInOut" },
+    }),
   };
 
   if (!featuredProducts.length) {
@@ -70,7 +85,7 @@ const FeaturedProducts = () => {
         initial="hidden"
         animate="visible"
         exit="exit"
-        transition={{ duration: 0.3, ease: "easeInOut" }}
+        custom={direction} // Pass direction to variants
       >
         <div className="relative w-full h-56">
           <Image
@@ -143,9 +158,11 @@ const FeaturedProducts = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 w-full max-w-7xl">
-        {getVisibleProducts().map((item) => (
-          <ProductCard key={item._id} item={item} />
-        ))}
+        <AnimatePresence initial={false} custom={direction}>
+          {getVisibleProducts().map((item) => (
+            <ProductCard key={item._id} item={item} />
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );
