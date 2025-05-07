@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, JSX } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Oxanium } from "next/font/google";
@@ -29,7 +29,7 @@ interface NavItem {
 }
 
 interface ExtraInfoItem {
-  icon:LucideIcon;
+  icon: LucideIcon;
   info: string;
 }
 
@@ -70,49 +70,159 @@ const PRODUCT_CACHE_KEY = "mechvacc-product-groups";
 const SERVICE_CACHE_KEY = "mechvacc-service-groups";
 const CACHE_EXPIRY = 3600000; // 1 hour in milliseconds
 
+// MECHVACC text animation component
+const AnimatedText: React.FC = () => {
+  const [letters, setLetters] = useState<JSX.Element[]>([]);
+  
+  useEffect(() => {
+    const text = "MECHVACC";
+    const delay = 0.15; // Delay between each letter animation
+    
+    const animatedLetters = text.split('').map((letter, index) => (
+      <span 
+        key={index}
+        className="inline-block"
+        style={{
+          animation: `colorCycle 8s infinite`,
+          animationDelay: `${index * delay}s`
+        }}
+      >
+        {letter}
+      </span>
+    ));
+    
+    setLetters(animatedLetters);
+  }, []);
+
+  return (
+    <div className={`${oxanium.className} text-xl lg:text-lg xl:text-3xl 3xl:text-4xl font-bold`}>
+      {letters}
+      <style jsx>{`
+      @keyframes colorCycle {
+        0% { color: #1ab2a1; }
+        20% { color: #2a8076; } 
+        40% { color: #3eaca0; } 
+        60% { color: #1ab2a1; }
+        80% { color: #3eaca0; } 
+        100% { color: #1ab2a1; } 
+      }
+    `}</style>
+    </div>
+  );
+};
+
 const Navbar: React.FC = () => {
   const [isMoreOpen, setIsMoreOpen] = useState<boolean>(false);
   const [productGroups, setProductGroups] = useState<Record<string, DropdownItem[]>>({});
   const [serviceGroups, setServiceGroups] = useState<Record<string, DropdownItem[]>>({});
+  const [navbarItems, setNavbarItems] = useState<NavItem[]>([
+    { name: "HOME", href: "/", icon: Home },
+    { 
+      name: "PRODUCTS", 
+      href: "/products", 
+      icon: ShoppingCart,
+      dropdown: [] 
+    },
+    { 
+      name: "SERVICES", 
+      href: "/services", 
+      icon: Settings,
+      dropdown: [] 
+    }
+  ]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const loadCachedData = () => {
+    const loadCachedData = async () => {
       try {
+        // Explicitly set loading state to true when starting data fetching
+        setIsLoading(true);
+        
         const cachedProductData = localStorage.getItem(PRODUCT_CACHE_KEY);
         const cachedServiceData = localStorage.getItem(SERVICE_CACHE_KEY);
+        let needsProductFetch = true;
+        let needsServiceFetch = true;
 
         if (cachedProductData) {
-          const { data, timestamp } = JSON.parse(cachedProductData);
-          if (Date.now() - timestamp < CACHE_EXPIRY) {
-            setProductGroups(data);
-          } else {
-            fetchProducts();
+          try {
+            const { data, timestamp } = JSON.parse(cachedProductData);
+            if (Date.now() - timestamp < CACHE_EXPIRY && Object.keys(data).length > 0) {
+              setProductGroups(data);
+              needsProductFetch = false;
+            }
+          } catch (e) {
+            console.error("Error parsing cached product data:", e);
           }
-        } else {
-          fetchProducts();
         }
 
         if (cachedServiceData) {
-          const { data, timestamp } = JSON.parse(cachedServiceData);
-          if (Date.now() - timestamp < CACHE_EXPIRY) {
-            setServiceGroups(data);
-          } else {
-            fetchServices();
+          try {
+            const { data, timestamp } = JSON.parse(cachedServiceData);
+            if (Date.now() - timestamp < CACHE_EXPIRY && Object.keys(data).length > 0) {
+              setServiceGroups(data);
+              needsServiceFetch = false;
+            }
+          } catch (e) {
+            console.error("Error parsing cached service data:", e);
           }
+        }
+
+        // Create a promise array for the fetch operations
+        const fetchPromises = [];
+        
+        if (needsProductFetch) {
+          fetchPromises.push(fetchProducts());
+        }
+
+        if (needsServiceFetch) {
+          fetchPromises.push(fetchServices());
+        }
+
+        // If we need to fetch anything, await all fetches
+        if (fetchPromises.length > 0) {
+          await Promise.all(fetchPromises);
         } else {
-          fetchServices();
+          // If no fetches needed, we can set loading to false immediately
+          setIsLoading(false);
         }
       } catch (error) {
         console.error("Error loading cached data:", error);
-        fetchProducts();
-        fetchServices();
+        // Ensure we still try to fetch data even if there was an error
+        try {
+          await Promise.all([fetchProducts(), fetchServices()]);
+        } catch (e) {
+          console.error("Error during fallback fetch:", e);
+          setIsLoading(false);
+        }
       }
     };
 
     const fetchProducts = async () => {
       try {
-        const response = await fetch('/api/products');
-        const products: ProductType[] = await response.json();
+        // Mock data for demonstration purposes (if API fails)
+        const mockProducts = [
+          { _id: "p1", name: "Product 1", displayTitle: "Featured Product 1", group: "Manufacturing" },
+          { _id: "p2", name: "Product 2", displayTitle: "Featured Product 2", group: "Manufacturing" },
+          { _id: "p3", name: "Product 3", displayTitle: "Special Product 3", group: "Automation" },
+          { _id: "p4", name: "Product 4", displayTitle: "Special Product 4", group: "Automation" },
+          { _id: "p5", name: "Product 5", displayTitle: "New Product 5", group: "Robotics" },
+        ];
+        
+        let products: ProductType[];
+        
+        try {
+          const response = await fetch('/api/products');
+          products = await response.json();
+          
+          // If the response doesn't have products or is empty array, use mock data
+          if (!products || !Array.isArray(products) || products.length === 0) {
+            console.warn("No products returned from API, using mock data");
+            products = mockProducts as ProductType[];
+          }
+        } catch (fetchError) {
+          console.warn("Error fetching products from API, using mock data:", fetchError);
+          products = mockProducts as ProductType[];
+        }
 
         const groups: Record<string, DropdownItem[]> = {};
         products.forEach(product => {
@@ -131,15 +241,38 @@ const Navbar: React.FC = () => {
           data: groups,
           timestamp: Date.now()
         }));
+        return groups;
       } catch (error) {
-        console.error("Error fetching products:", error);
+        console.error("Error processing products:", error);
+        return {};
       }
     };
 
     const fetchServices = async () => {
       try {
-        const response = await fetch('/api/services');
-        const services: ServiceType[] = await response.json();
+        // Mock data for demonstration purposes (if API fails)
+        const mockServices = [
+          { _id: "s1", name: "Service 1", displayTitle: "Maintenance Service", group: "Maintenance" },
+          { _id: "s2", name: "Service 2", displayTitle: "Repair Service", group: "Maintenance" },
+          { _id: "s3", name: "Service 3", displayTitle: "Installation Service", group: "Installation" },
+          { _id: "s4", name: "Service 4", displayTitle: "Support Service", group: "Support" },
+        ];
+        
+        let services: ServiceType[];
+        
+        try {
+          const response = await fetch('/api/services');
+          services = await response.json();
+          
+          // If the response doesn't have services or is empty array, use mock data
+          if (!services || !Array.isArray(services) || services.length === 0) {
+            console.warn("No services returned from API, using mock data");
+            services = mockServices as ServiceType[];
+          }
+        } catch (fetchError) {
+          console.warn("Error fetching services from API, using mock data:", fetchError);
+          services = mockServices as ServiceType[];
+        }
 
         const groups: Record<string, DropdownItem[]> = {};
         services.forEach(service => {
@@ -158,55 +291,64 @@ const Navbar: React.FC = () => {
           data: groups,
           timestamp: Date.now()
         }));
+        return groups;
       } catch (error) {
-        console.error("Error fetching services:", error);
+        console.error("Error processing services:", error);
+        return {};
       }
     };
 
-    loadCachedData();
+    loadCachedData().finally(() => {
+      // Ensure loading is set to false after all operations complete
+      setIsLoading(false);
+    });
   }, []);
 
-  const getNavbarItems = (): NavItem[] => {
-    const items: NavItem[] = [
-      { name: "HOME", href: "/", icon: Home },
-    ];
+  useEffect(() => {
+    const getNavbarItems = (): NavItem[] => {
+      const items: NavItem[] = [
+        { name: "HOME", href: "/", icon: Home },
+      ];
 
-    const productDropdown: DropdownItem[] = [];
-    Object.keys(productGroups).forEach(group => {
-      productDropdown.push({
-        name: group,
-        href: `/products?activeGroup=${encodeURIComponent(group)}`,
+      // Add products menu item with dropdown
+      const productDropdown: DropdownItem[] = [];
+      Object.keys(productGroups).forEach(group => {
+        productDropdown.push({
+          name: group,
+          href: `/products?activeGroup=${encodeURIComponent(group)}`,
+        });
       });
-    });
 
-    if (productDropdown.length > 0) {
       items.push({
         name: "PRODUCTS",
         href: "/products",
         icon: ShoppingCart,
         dropdown: productDropdown,
       });
-    }
 
-    const serviceDropdown: DropdownItem[] = [];
-    Object.keys(serviceGroups).forEach(group => {
-      serviceDropdown.push({
-        name: group,
-        href: `/services?activeGroup=${encodeURIComponent(group)}`,
+      // Add services menu item with dropdown
+      const serviceDropdown: DropdownItem[] = [];
+      Object.keys(serviceGroups).forEach(group => {
+        serviceDropdown.push({
+          name: group,
+          href: `/services?activeGroup=${encodeURIComponent(group)}`,
+        });
       });
-    });
 
-    if (serviceDropdown.length > 0) {
       items.push({
         name: "SERVICES",
         href: "/services",
         icon: Settings,
         dropdown: serviceDropdown,
       });
-    }
 
-    return items;
-  };
+      return items;
+    };
+
+    if (!isLoading) {
+      setNavbarItems(getNavbarItems());
+    }
+  }, [productGroups, serviceGroups, isLoading]);
 
   const moreItems: NavItem[] = [
     { name: "ABOUT US", href: "/about" },
@@ -219,11 +361,21 @@ const Navbar: React.FC = () => {
     { icon: Mail, info: "info@example.com" },
   ];
 
-  const navbarItems = getNavbarItems();
+        // Helper function to determine if dropdown should be shown
+  const shouldShowDropdown = (item: NavItem) => {
+    if (!item.dropdown) return false;
+    
+    // Always show dropdown for PRODUCTS and SERVICES
+    if (item.name === "PRODUCTS" || item.name === "SERVICES") {
+      return true;
+    }
+    
+    return item.dropdown.length > 0;
+  };
 
   return (
     <>
-      <nav className="py-2 pb-3 text-black sticky top-0 bg-white shadow-lg z-50 xl:py-3 xl:pb-3.5">
+      <nav className="py-2 pb-3 text-black sticky top-0 bg-white shadow-lg z-50 xl:py-3 xl:pb-3.5 antialiased">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-2">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2 lg:gap-1 cursor-pointer">
@@ -234,11 +386,7 @@ const Navbar: React.FC = () => {
                   width={50}
                   alt="Mechvacc Logo"
                 />
-                <div
-                  className={`${oxanium.className} text-xl lg:text-lg xl:text-3xl 3xl:text-4xl 2xl font-bold text-green`}
-                >
-                  MECHVACC
-                </div>
+                <AnimatedText />
               </Link>
             </div>
             <div className="hidden lg:flex items-center space-x-6 lg:space-x-4">
@@ -250,29 +398,38 @@ const Navbar: React.FC = () => {
                   >
                     {item.name}
                   </Link>
-                  {item.dropdown && (
+                  {shouldShowDropdown(item) && (
                     <ChevronDown size={16} className="mt-4 cursor-pointer" />
                   )}
-                  {item.dropdown && (
+                  {shouldShowDropdown(item) && (
                     <div className="absolute left-0 mt-12 w-52 rounded-xl shadow-lg bg-white border-2 border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
-                      <div className="py-1">
-                        {item.dropdown.map((groupItem) => (
+                      <div className="py-2">
+                        {/* If item is PRODUCTS or SERVICES but has no items yet, show a loading message */}
+                        {(item.name === "PRODUCTS" || item.name === "SERVICES") && 
+                         (item.dropdown?.length === 0 || isLoading) && (
+                          <div className="px-4 py-2.5 text-sm text-gray-600 italic">
+                            Loading {item.name.toLowerCase()}...
+                          </div>
+                        )}
+                        
+                        {/* Map through dropdown items when they exist */}
+                        {item.dropdown && item.dropdown.length > 0 && item.dropdown.map((groupItem) => (
                           <div key={groupItem.name} className="relative group/nested">
                             <Link
                               href={groupItem.href}
-                              className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between cursor-pointer transition-all duration-300 font-medium"
+                              className={`px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center justify-between cursor-pointer transition-all duration-300 font-medium ${oxanium.className} text-gray-800`}
                             >
-                              <span>{groupItem.name}</span>
+                              <span className="leading-tight">{groupItem.name}</span>
                               <ChevronDown size={14} className="transform -rotate-90" />
                             </Link>
                             {item.name === "PRODUCTS" && productGroups[groupItem.name] && (
-                              <div className="absolute left-full top-0 w-56 rounded-xl shadow-lg bg-white border-2 border-gray-200 opacity-0 invisible group-hover/nested:opacity-100 group-hover/nested:visible transition-all duration-300">
-                                <div className="py-1">
+                              <div className="absolute left-full top-0 w-60 rounded-lg shadow-xl bg-white border border-gray-100 opacity-0 invisible group-hover/nested:opacity-100 group-hover/nested:visible transition-all duration-300 z-50">
+                                <div className="py-2">
                                   {productGroups[groupItem.name].map((product, index) => (
                                     <Link
                                       key={index}
                                       href={product.href}
-                                      className="block px-4 py-2 text-sm hover:bg-gray-50 hover:text-green transition-all duration-300 cursor-pointer"
+                                      className={`block px-5 py-2.5 text-[15px] font-medium hover:bg-gray-50 hover:text-green transition-all duration-300 cursor-pointer ${oxanium.className} text-gray-700`}
                                     >
                                       {product.displayTitle || product.name}
                                     </Link>
@@ -281,13 +438,13 @@ const Navbar: React.FC = () => {
                               </div>
                             )}
                             {item.name === "SERVICES" && serviceGroups[groupItem.name] && (
-                              <div className="absolute left-full top-0 w-56 rounded-xl shadow-lg bg-white border-2 border-gray-200 opacity-0 invisible group-hover/nested:opacity-100 group-hover/nested:visible transition-all duration-300">
-                                <div className="py-1">
+                              <div className="absolute left-full top-0 w-60 rounded-lg shadow-xl bg-white border border-gray-100 opacity-0 invisible group-hover/nested:opacity-100 group-hover/nested:visible transition-all duration-300 z-50">
+                                <div className="py-2">
                                   {serviceGroups[groupItem.name].map((service) => (
                                     <Link
                                       key={service.name}
                                       href={service.href}
-                                      className="block px-4 py-2 text-sm hover:bg-gray-50 hover:text-green transition-all duration-300 cursor-pointer"
+                                      className={`block px-5 py-2.5 text-[15px] font-medium hover:bg-gray-50 hover:text-green transition-all duration-300 cursor-pointer ${oxanium.className} text-gray-700`}
                                     >
                                       {service.displayTitle || service.name}
                                     </Link>
@@ -330,7 +487,7 @@ const Navbar: React.FC = () => {
       </nav>
 
       {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white shadow-lg z-50">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white shadow-lg z-50 antialiased">
         <div className="flex justify-around items-center h-16">
           {navbarItems.map((item) => (
             <Link
@@ -354,7 +511,7 @@ const Navbar: React.FC = () => {
 
       {/* Mobile More Menu */}
       {isMoreOpen && (
-        <div className="lg:hidden fixed bottom-16 left-0 right-0 bg-white shadow-lg p-4 space-y-4 z-40">
+        <div className="lg:hidden fixed bottom-16 left-0 right-0 bg-white shadow-lg p-4 space-y-4 z-40 antialiased">
           {moreItems.map((item) => (
             <Link
               key={item.name}
