@@ -375,7 +375,7 @@ const Navbar: React.FC = () => {
 
   return (
     <>
-      <nav className="py-2 pb-3 text-black sticky top-0 bg-white shadow-lg z-50 xl:py-3 xl:pb-3.5 antialiased">
+      <nav className="py-2 pb-3 text-[#50c2a7] sticky top-0 bg-white shadow-lg z-50 xl:py-3 xl:pb-3.5 antialiased">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-2">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2 lg:gap-1 cursor-pointer">
