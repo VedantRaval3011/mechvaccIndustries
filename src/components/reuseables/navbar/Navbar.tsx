@@ -391,7 +391,7 @@ const Navbar: React.FC = () => {
             </div>
             <div className="hidden lg:flex items-center space-x-6 lg:space-x-4">
               {navbarItems.map((item) => (
-                <div key={item.name} className="relative group flex">
+                <div key={item.name} className="relative group flex text-black">
                   <Link
                     href={item.href}
                     className="xl:px-3 lg:px-2 px-2 py-3 rounded-md text-base lg:text-lg 3xl:text-xl font-medium hover:text-green flex items-center cursor-pointer transition-all duration-300"
@@ -463,7 +463,7 @@ const Navbar: React.FC = () => {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className="px-2 xl:px-3 py-3 text-lg rounded-md font-medium hover:text-green 3xl:text-xl cursor-pointer transition-all duration-300"
+                  className="px-2 xl:px-3 py-3 text-black text-lg rounded-md font-medium hover:text-green 3xl:text-xl cursor-pointer transition-all duration-300"
                 >
                   {item.name}
                 </Link>
