@@ -3,9 +3,9 @@ import React, { useRef, useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import { motion, useMotionValue } from "framer-motion";
-import Link from "next/link"; // Import Link from Next.js
+import Link from "next/link";
 
-// Define the type for each service item based on your schema
+// Define the type for each service item
 type Service = {
   _id: string;
   displayImage: string;
@@ -13,28 +13,23 @@ type Service = {
   displayTitle: string;
 };
 
-// Utility function to clamp values within a range
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(Math.max(value, min), max);
-
 const FeaturedServices: React.FC = () => {
-  const carouselRef = useRef<HTMLDivElement | null>(null); // Ref for the carousel container
-  const x = useMotionValue(0); // Motion value for horizontal scrolling
-  const [maxScroll, setMaxScroll] = useState<number>(0); // Maximum scrollable distance
-  const [services, setServices] = useState<Service[]>([]); // State for fetched services
-  const [loading, setLoading] = useState(true); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
+  const carouselRef = useRef<HTMLDivElement | null>(null);
+  const x = useMotionValue(0); // Tracks the scroll position
+  const [maxScroll, setMaxScroll] = useState<number>(0);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isInteracting, setIsInteracting] = useState(false); // Tracks if the user is interacting
+  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null); // Stores the auto-scroll timer
 
   // Fetch services from the API
   useEffect(() => {
     const fetchServices = async () => {
       try {
         const response = await fetch("/api/services");
-        if (!response.ok) {
-          throw new Error("Failed to fetch services");
-        }
+        if (!response.ok) throw new Error("Failed to fetch services");
         const data = await response.json();
-        // Map the API data to the expected Service type
         const mappedServices: Service[] = data.map((service: Service) => ({
           _id: service._id,
           displayImage: service.displayImage,
@@ -48,80 +43,126 @@ const FeaturedServices: React.FC = () => {
         setLoading(false);
       }
     };
-
     fetchServices();
   }, []);
 
   // Calculate the maximum scrollable width
   useEffect(() => {
-    const updateMaxScroll = (): void => {
+    const updateMaxScroll = () => {
       if (carouselRef.current) {
-        const totalWidth = carouselRef.current.scrollWidth;
+        const totalWidth = carouselRef.current.scrollWidth / 2; // Divide by 2 due to content duplication
         const visibleWidth = carouselRef.current.offsetWidth;
         setMaxScroll(Math.max(0, totalWidth - visibleWidth));
       }
     };
-
     updateMaxScroll();
     window.addEventListener("resize", updateMaxScroll);
     return () => window.removeEventListener("resize", updateMaxScroll);
-  }, [services]); // Re-run when services are loaded
+  }, [services]);
 
-  // Handle drag events to scroll horizontally
+  // Auto-scrolling logic
+  useEffect(() => {
+    if (isInteracting || loading || error) return; // Don’t auto-scroll during interaction, loading, or errors
+
+    const scrollStep = -1; // Speed of auto-scroll (negative for leftward movement)
+    const interval = setInterval(() => {
+      const newX = x.get() + scrollStep;
+      const loopWidth = carouselRef.current && carouselRef.current.scrollWidth
+        ? carouselRef.current.scrollWidth / 2
+        : 0; // Half the width due to duplication
+
+      if (newX < -loopWidth) {
+        x.set(newX + loopWidth); // Reset to create an infinite loop
+      } else {
+        x.set(newX); // Continue moving
+      }
+    }, 16); // ~60fps for smooth animation
+
+    setAutoScrollInterval(interval); // Store the interval ID
+    return () => clearInterval(interval); // Cleanup on unmount or when dependencies change
+  }, [isInteracting, loading, error, x]);
+
+  // Handle drag events
+  const handleDragStart = () => {
+    setIsInteracting(true); // Pause auto-scroll
+    if (autoScrollInterval) clearInterval(autoScrollInterval); // Stop the timer
+  };
+
+  const handleDragEnd = () => {
+    setTimeout(() => setIsInteracting(false), 2000); // Resume auto-scroll after 2 seconds
+  };
+
   const handleDrag = (
     _: MouseEvent | TouchEvent | PointerEvent,
     info: { delta: { x: number } }
-  ): void => {
-    const newX = clamp(x.get() + info.delta.x, -maxScroll, 0);
-    x.set(newX);
+  ) => {
+    const newX = x.get() + info.delta.x;
+    const loopWidth = carouselRef.current && typeof carouselRef.current.scrollWidth === "number"
+      ? carouselRef.current.scrollWidth / 2
+      : 0;
+
+    if (newX > 0) {
+      x.set(newX - loopWidth); // Loop to the start
+    } else if (newX < -loopWidth) {
+      x.set(newX + loopWidth); // Loop to the end
+    } else {
+      x.set(newX);
+    }
   };
 
-  // Handle wheel events to scroll horizontally
-  const handleWheel = (event: WheelEvent): void => {
+  // Handle wheel events
+  const handleWheel = (event: WheelEvent) => {
     event.preventDefault();
-    const newX = clamp(x.get() - event.deltaY, -maxScroll, 0);
-    x.set(newX);
+    setIsInteracting(true); // Pause auto-scroll
+    if (autoScrollInterval) clearInterval(autoScrollInterval); // Stop the timer
+
+    const newX = x.get() - event.deltaY;
+    const loopWidth = carouselRef.current && typeof carouselRef.current.scrollWidth === "number"
+      ? carouselRef.current.scrollWidth / 2
+      : 0;
+
+    if (newX > 0) {
+      x.set(newX - loopWidth); // Loop to the start
+    } else if (newX < -loopWidth) {
+      x.set(newX + loopWidth); // Loop to the end
+    } else {
+      x.set(newX);
+    }
+
+    setTimeout(() => setIsInteracting(false), 2000); // Resume auto-scroll after 2 seconds
   };
 
-  // Add wheel event listener to the carousel
+  // Add wheel event listener
   useEffect(() => {
     const carousel = carouselRef.current;
     if (!carousel) return;
 
-    const wheelHandler = (event: WheelEvent): void => {
-      handleWheel(event);
-    };
-
+    const wheelHandler = (event: WheelEvent) => handleWheel(event);
     carousel.addEventListener("wheel", wheelHandler, { passive: false });
-    return () => {
-      carousel.removeEventListener("wheel", wheelHandler);
-    };
+    return () => carousel.removeEventListener("wheel", wheelHandler);
   }, [maxScroll]);
 
-  if (loading) {
-    return <div className="text-center py-10">Loading services...</div>;
-  }
+  if (loading) return <div className="text-center py-10">Loading services...</div>;
+  if (error) return <div className="text-center py-10 text-red-500">{error}</div>;
 
-  if (error) {
-    return <div className="text-center py-10 text-red-500">{error}</div>;
-  }
+  // Duplicate services for infinite scrolling
+  const duplicatedServices = [...services, ...services];
 
   return (
     <div className="mx-auto overflow-hidden py-10 md:pt-16 md:ml-2">
       <div className="flex items-center flex-col text-center">
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-8 uppercase">
-          You&apos;ll discover <br /> Expert Industrial <br />
+          You'll discover <br /> Expert Industrial <br />
           <span className="relative">
             Services{" "}
             <span className="absolute left-px text-[var(--color-green)]">Services</span>
           </span>
         </h1>
-        <div>
+        <Link href="/services">
           <button className="bg-[var(--color-green)] lg:text-3xl text-white text-2xl rounded-2xl cursor-pointer text-center p-2.5 lg:p-3">
             All Services
           </button>
-        </div>
-      
+        </Link>
       </div>
       <motion.div
         ref={carouselRef}
@@ -130,32 +171,38 @@ const FeaturedServices: React.FC = () => {
       >
         <motion.div
           className="flex overflow-x-hidden gap-4 pb-4 cursor-grab py-16"
-          style={{ x, width: "fit-content" }}
+          style={{ x, width: "fit-content" }} // Bind scroll position to x
           drag="x"
           dragConstraints={{ right: 0, left: -maxScroll }}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
           onDrag={handleDrag}
         >
-          {services.map((item, idx) => (
+          {duplicatedServices.map((item, idx) => (
             <motion.div
-              key={item._id} // Use _id as the key for uniqueness
-              className={`flex-shrink-0 ${
-                idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
-              }`}
+              key={`${item._id}-${idx}`} // Unique key for duplicated items
+              className={`flex-shrink-0 ${idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"}`}
               whileHover={{ scale: 1.05 }}
               transition={{ duration: 0.3 }}
             >
               {idx % 2 === 0 ? (
-                <div className="h-80">
-                  <Link href={`/services/${item._id}`}>
-                    <Image
-                      src={item.displayImage}
-                      width={400}
-                      height={300}
-                      alt={item.displayTitle}
-                      className="rounded-xl h-full w-full object-cover cursor-pointer"
-                    />
-                  </Link>
+                <Link href={`/services/${item._id}`}>
+                <div className="h-80 relative group rounded-xl overflow-hidden cursor-pointer">
+                  <Image
+                    src={item.displayImage}
+                    width={400}
+                    height={300}
+                    alt={item.displayTitle}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-opacity-50 text-white shadow-5xl p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center">
+                    <h2 className="text-xl font-medium truncate text-bold flex-1 stroke-2 stroke-fuchsia-50">{item.displayTitle}</h2>
+                    <button className="bg-[var(--color-green)] text-white px-4 py-2 rounded ml-4 cursor-pointer">
+                      Know More
+                    </button>
+                  </div>
                 </div>
+              </Link>
               ) : (
                 <Link href={`/services/${item._id}`}>
                   <div className="bg-white shadow-md rounded-3xl h-[21rem] flex flex-col cursor-pointer">

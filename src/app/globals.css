@@ -13,6 +13,8 @@
   --color-large-green-gradient-end: #50C4A9;
 }
 
+
+
 .bg-green-gradient {
   background: linear-gradient(90deg, var(--color-green-gradient-start) 0%, var(--color-green-gradient-end) 100%);
 }
@@ -54,6 +56,8 @@
   position: relative;
   z-index: 1;
 }
+
+
 
 .step {
   display: flex;
