@@ -302,7 +302,7 @@ const FeaturedProducts = () => {
       <div className="relative w-full max-w-7xl">
         <div className="relative w-full min-h-[28rem]">
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
-            {getVisibleProductsWithLayout().map((item, index) => (
+            {getVisibleProductsWithLayout().map((item) => (
               <ProductCard
                 key={`${item.product._id}-${item.layout.position}-${
                   item.layout.isEntering

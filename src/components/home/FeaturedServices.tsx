@@ -152,7 +152,7 @@ const FeaturedServices: React.FC = () => {
     <div className="mx-auto overflow-hidden py-10 md:pt-16 md:ml-2">
       <div className="flex items-center flex-col text-center">
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-8 uppercase">
-          You'll discover <br /> Expert Industrial <br />
+          You&apos;ll discover <br /> Expert Industrial <br />
           <span className="relative">
             Services{" "}
             <span className="absolute left-px text-[var(--color-green)]">Services</span>
