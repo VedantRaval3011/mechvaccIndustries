@@ -22,7 +22,7 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   
   // Use environment variable for maintenance mode
-   const maintenanceMode = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
+   const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
 
   return (
     <html lang="en">
