@@ -1,8 +1,13 @@
-import { NextPage } from "next";
 import { motion } from "framer-motion";
 import { Clock, Mail } from "lucide-react";
 
-const MaintenancePage: NextPage = () => {
+export const metadata = {
+  title: "Maintenance | Your Site",
+  description: "Our website is currently under maintenance. We'll be back soon!",
+  robots: "noindex",
+};
+
+export default function MaintenancePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300 p-4">
       <motion.div
@@ -19,7 +24,7 @@ const MaintenancePage: NextPage = () => {
           <Clock className="w-16 h-16 text-[var(--color-green)] mx-auto mb-4" />
         </motion.div>
         <h1 className="text-3xl md:text-4xl font-bold text-gray-800">
-          We are Under Maintenance
+          We&apos;re Under Maintenance
         </h1>
         <p className="text-lg text-gray-600">
           Our website is currently undergoing scheduled maintenance to bring you a better experience.
@@ -29,19 +34,33 @@ const MaintenancePage: NextPage = () => {
         </p>
         <div className="flex justify-center">
           <a
-            href="mailto:mechvacc@gmail.com"
+            href="mailto:support@your-site.com"
             className="inline-flex items-center px-6 py-3 bg-[var(--color-green)] text-white font-semibold rounded-full hover:bg-[var(--color-green-gradient-end)] transition-all duration-300"
           >
             <Mail className="w-5 h-5 mr-2" />
             Contact Support
           </a>
         </div>
-       
+        <motion.div
+          className="mt-6 text-sm text-gray-400"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          Follow us on{" "}
+          <a
+            href="https://x.com/yourhandle"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--color-green)] hover:underline"
+          >
+            X
+          </a>{" "}
+          for updates.
+        </motion.div>
       </motion.div>
     </div>
   );
-};
+}
 
-
-
-export default MaintenancePage;
+export const revalidate = 3600; // Revalidate every hour
