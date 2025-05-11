@@ -42,11 +42,6 @@ const MaintenancePage: NextPage = () => {
   );
 };
 
-export const getStaticProps = async () => {
-  return {
-    props: {},
-    revalidate: 3600, // Revalidate every hour
-  };
-};
+
 
 export default MaintenancePage;
