@@ -548,7 +548,7 @@ const Navbar: React.FC = () => {
     </>
     ) : (
       <div>
-        <p>We'll be back soon!</p>
+        <p>We&apsos;ll be back soon!</p>
       </div>
     )
   );
