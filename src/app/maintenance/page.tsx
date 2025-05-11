@@ -21,7 +21,7 @@ export default function MaintenancePage() {
           className="transition-transform duration-500 ease-out"
           style={{ transform: isClient ? 'scale(1)' : 'scale(0.8)' }}
         >
-          <Clock className="w-16 h-16 text-[#4CAF50] mx-auto mb-4" />
+          <Clock className="w-16 h-16 text-[#49b195] mx-auto mb-4" />
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-gray-800">
           We&apos;re Under Maintenance
@@ -36,7 +36,7 @@ export default function MaintenancePage() {
         <div className="flex justify-center">
           <a
             href="mailto:mechvacc@gmail.com"
-            className="inline-flex items-center px-6 py-3 bg-[#4CAF50] text-white font-semibold rounded-full hover:bg-[#388E3C] transition-all duration-300"
+            className="inline-flex items-center px-6 py-3 bg-[#49b195] text-white font-semibold rounded-full hover:bg-[#388E3C] transition-all duration-300"
           >
             <Mail className="w-5 h-5 mr-2" />
             Contact Support
