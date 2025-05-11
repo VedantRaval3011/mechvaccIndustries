@@ -3,12 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Clock, Mail } from "lucide-react";
 
-export const metadata = {
-  title: "Maintenance | Your Site",
-  description:
-    "Our website is currently under maintenance. We'll be back soon!",
-  robots: "noindex",
-};
 
 export default function MaintenancePage() {
   const [isClient, setIsClient] = useState(false);
