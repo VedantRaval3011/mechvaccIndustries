@@ -3,7 +3,8 @@ import { Clock, Mail } from "lucide-react";
 
 export const metadata = {
   title: "Maintenance | Your Site",
-  description: "Our website is currently under maintenance. We'll be back soon!",
+  description:
+    "Our website is currently under maintenance. We'll be back soon!",
   robots: "noindex",
 };
 
@@ -27,37 +28,21 @@ export default function MaintenancePage() {
           We&apos;re Under Maintenance
         </h1>
         <p className="text-lg text-gray-600">
-          Our website is currently undergoing scheduled maintenance to bring you a better experience.
+          Our website is currently undergoing scheduled maintenance to bring you
+          a better experience.
         </p>
         <p className="text-md text-gray-500 font-medium">
           Expected downtime: Up to 7 days from May 11, 2025
         </p>
         <div className="flex justify-center">
           <a
-            href="mailto:support@your-site.com"
+            href="mailto:mechvacc@gmail.com"
             className="inline-flex items-center px-6 py-3 bg-[var(--color-green)] text-white font-semibold rounded-full hover:bg-[var(--color-green-gradient-end)] transition-all duration-300"
           >
             <Mail className="w-5 h-5 mr-2" />
             Contact Support
           </a>
         </div>
-        <motion.div
-          className="mt-6 text-sm text-gray-400"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          Follow us on{" "}
-          <a
-            href="https://x.com/yourhandle"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--color-green)] hover:underline"
-          >
-            X
-          </a>{" "}
-          for updates.
-        </motion.div>
       </motion.div>
     </div>
   );
