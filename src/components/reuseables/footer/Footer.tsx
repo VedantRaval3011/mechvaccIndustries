@@ -6,7 +6,7 @@ import MobileViewFooter from "../home/MobileFooter";
 import PolicyFooter from "../home/PolicyFooter";
 
 // Environment variables
-const MAINTENANCE_MODE = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
+const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE;
 const NODE_ENV = process.env.NODE_ENV;
 
 const Footer = () => {
