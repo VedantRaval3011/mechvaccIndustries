@@ -20,13 +20,19 @@ interface RootLayoutProps {
 }
 
 export default function RootLayout({ children }: RootLayoutProps) {
+  
+  // Use environment variable for maintenance mode
+  const maintenanceMode = process.env.MAINTENANCE_MODE;
+
   return (
     <html lang="en">
       <body className={`${ubuntu.className} antialiased`}>
-        <Navbar/>
+        {/* Only show Navbar if not in maintenance mode or not on maintenance page */}
+        { !maintenanceMode && <Navbar />}
         {children}  
         <ToastContainer position="top-right" autoClose={5000} />
-        <Footer/>
+        {/* Only show Footer if not in maintenance mode or not on maintenance page */}
+        { !maintenanceMode && <Footer />}
       </body>
     </html>
   );
