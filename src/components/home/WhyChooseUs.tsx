@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState } from "react";
-import { motion, useMotionValue } from "framer-motion";
-import { List } from "lucide-react";
+import { motion, useMotionValue, animate, PanInfo } from "framer-motion";
+import { List, ChevronRight, ChevronLeft } from "lucide-react";
 import Image from "next/image";
 import styles from "./styles/WhyChooseUs.module.css";
 
@@ -40,7 +40,7 @@ const data = [
   },
   {
     icon: "/settings.png",
-    title: "  Commitment",
+    title: "Commitment",
     introDesc: "Our focus on sustainability is reflected in:",
     keyPoints: [
       "Eco-friendly materials",
@@ -54,6 +54,9 @@ const WhyChooseUs = () => {
   const carouselRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const [maxScroll, setMaxScroll] = useState(0);
+  const [showLeftButton, setShowLeftButton] = useState(false);
+  const [showRightButton, setShowRightButton] = useState(true);
+  const [isScrollIndicatorVisible, setIsScrollIndicatorVisible] = useState(true);
 
   useEffect(() => {
     const updateMaxScroll = () => {
@@ -70,12 +73,36 @@ const WhyChooseUs = () => {
     return () => window.removeEventListener("resize", updateMaxScroll);
   }, []);
 
-  const handleDrag = (event: DragEvent, info: { delta: { x: number } }) => {
+  // Hide scroll indicator after a few seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsScrollIndicatorVisible(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const updateScrollButtons = () => {
+      const currentX = x.get();
+      setShowLeftButton(currentX < 0);
+      setShowRightButton(currentX > -maxScroll);
+    };
+
+    const unsubscribe = x.onChange(updateScrollButtons);
+    return unsubscribe;
+  }, [x, maxScroll]);
+
+  const handleDrag = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo): void => {
     const newX = x.get() + info.delta.x;
     x.set(clamp(newX, -maxScroll, 0));
   };
 
-  const handleWheel = (e: WheelEvent) => {
+  interface WheelHandler {
+    (e: WheelEvent): void;
+  }
+
+  const handleWheel: WheelHandler = (e) => {
     e.preventDefault();
     const newX = clamp(x.get() - e.deltaY, -maxScroll, 0);
     x.set(newX);
@@ -85,7 +112,7 @@ const WhyChooseUs = () => {
     const carousel = carouselRef.current;
     if (!carousel) return;
 
-    const wheelHandler = (e: WheelEvent) => {
+    const wheelHandler = (e: WheelEvent): void => {
       e.preventDefault();
       handleWheel(e);
     };
@@ -97,13 +124,58 @@ const WhyChooseUs = () => {
     };
   }, [maxScroll]);
 
-  const clamp = (value: number, min: number, max: number) => {
+  const clamp = (value: number, min: number, max: number): number => {
     return Math.min(Math.max(value, min), max);
   };
 
+  const scrollLeft = () => {
+    const currentX = x.get();
+    // Scroll by approximately one card's width (300px + 16px gap)
+    const scrollAmount = 316;
+    const newX = clamp(currentX + scrollAmount, -maxScroll, 0);
+    animate(x, newX, {
+      type: "spring",
+      stiffness: 100,
+      damping: 20,
+      mass: 0.5,
+    });
+  };
+
+  const scrollRight = () => {
+    const currentX = x.get();
+    // Scroll by approximately one card's width (300px + 16px gap)
+    const scrollAmount = -316;
+    const newX = clamp(currentX + scrollAmount, -maxScroll, 0);
+    animate(x, newX, {
+      type: "spring",
+      stiffness: 100,
+      damping: 20,
+      mass: 0.5,
+    });
+  };
+
+  // Animation variants for the scroll indicator
+  const scrollIndicatorVariants = {
+    visible: { 
+      opacity: 1,
+      y: 0,
+      transition: { 
+        duration: 0.3,
+        repeat: 3,
+        repeatType: "reverse" as const,
+        repeatDelay: 0.5
+      }
+    },
+    hidden: { 
+      opacity: 0,
+      y: 10,
+      transition: { duration: 0.3 }
+    }
+  };
+
   return (
-    <div className="bg-[var(--color-gray-bg)] flex flex-col xl:flex-row lg:flex-row xl:h-3/4 lg:p-10 gap-8 xl:gap-0 3xl:gap-40">
-      <div className="mx-3 mt-10 flex flex-col gap-3 xl:pl-20 xl:mt-16">
+    <div className="bg-[var(--color-gray-bg)] flex flex-col xl:flex-row lg:flex-row xl:h-3/4 lg:p-10 gap-8 xl:gap-0 3xl:gap-40 relative">
+      <div className="mx-3 mt-10 flex flex-col gap-3 xl:pl-5 xl:mt-16">
         <h1 className="text-4xl xl:text-6xl md:text-5xl">
           Why Choose <br />
           <span className="relative font-semibold">
@@ -127,14 +199,60 @@ const WhyChooseUs = () => {
 
       <motion.div
         ref={carouselRef}
-        className="md:ml-0 w-full overflow-hidden xl:w-2/3 lg:mt-5 xl:mt-10"
-        whileTap={{ cursor: "grabbing" }}>
+        className="md:ml-0 w-full overflow-hidden xl:w-2/3 lg:mt-5 xl:mt-10 relative"
+        whileTap={{ cursor: "grabbing" }}
+      >
+       
+
+        {/* Scroll indicator */}
+        <motion.div 
+          className="absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-[var(--color-green)] text-white px-4 py-2 rounded-full z-30 flex items-center gap-2 shadow-lg"
+          initial="visible"
+          animate={isScrollIndicatorVisible ? "visible" : "hidden"}
+          variants={scrollIndicatorVariants}
+        >
+          <ChevronLeft size={16} />
+          <span className="whitespace-nowrap text-sm font-medium">Swipe or Scroll</span>
+          <ChevronRight size={16} />
+        </motion.div>
+
+        {/* Scroll Left Button */}
+        {showLeftButton && (
+          <motion.button
+            onClick={scrollLeft}
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-[var(--color-green)] text-white rounded-full p-2 shadow-lg z-20 flex items-center justify-center"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <ChevronLeft size={24} />
+          </motion.button>
+        )}
+
+        {/* Scroll Right Button */}
+        {showRightButton && (
+          <motion.button
+            onClick={scrollRight}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-[var(--color-green)] text-white rounded-full p-2 shadow-lg z-20 flex items-center justify-center"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <ChevronRight size={24} className="ml-0.5" />
+          </motion.button>
+        )}
+
         <motion.div
           drag="x"
           dragConstraints={{ right: 0, left: -maxScroll }}
           onDrag={handleDrag}
           className="flex gap-4"
-          style={{ x }}>
+          style={{ x }}
+        >
           {data.map((item, idx) => (
             <motion.div
               key={idx}
@@ -143,7 +261,8 @@ const WhyChooseUs = () => {
                 scale: 1.02,
                 boxShadow: "0px 10px 20px rgba(0, 0, 0, 0.1)",
                 transition: { duration: 0.3 },
-              }}>
+              }}
+            >
               <Image
                 width={125}
                 height={100}

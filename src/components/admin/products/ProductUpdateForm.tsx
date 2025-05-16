@@ -11,12 +11,27 @@ interface ProductWithCallbacks extends Product {
   onDelete?: () => void;
 }
 
+// Custom validation function to check name uniqueness
+const checkNameUniqueness = async (name: string, currentProductId: string) => {
+  try {
+    const response = await fetch("/api/products");
+    if (!response.ok) throw new Error("Failed to fetch products");
+    const products: Product[] = await response.json();
+    return !products.some(
+      (product) => product.name.toLowerCase() === name.toLowerCase() && product._id !== currentProductId
+    );
+  } catch (error) {
+    console.error("Error checking name uniqueness:", error);
+    return false; // Conservatively assume non-unique on error
+  }
+};
+
+// Zod schema with uniqueness validation
 const updateSchema = z.object({
+  _id: z.string().optional(), // Added to have access in the form
   name: z.string().min(1, "Product name is required"),
   displayTitle: z.string().min(1, "Display title is required"),
   group: z.string().min(1, "Group is required"),
-  price: z.number().min(0, "Price must be positive"),
-  priceLabel: z.string().optional(), // New field
   description: z.string().optional(),
   displayImage: z.any().optional(),
   additionalImages: z
@@ -29,7 +44,7 @@ const updateSchema = z.object({
     .optional(),
   video: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   pdf: z.string().url("Must be a valid URL").optional().or(z.literal("")),
-  seoKeywords: z.string().optional(), // New SEO keywords field
+  seoKeywords: z.string().optional(),
   specifications: z
     .array(
       z.object({
@@ -69,6 +84,12 @@ export default function ProductUpdateForm({
   const [previewAdditionalImages, setPreviewAdditionalImages] = useState<
     string[]
   >(product.additionalImages || []);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [isCheckingName, setIsCheckingName] = useState(false);
+
+  const handleNewProduct = () => {
+    window.location.reload();
+  };
 
   const {
     register,
@@ -80,11 +101,10 @@ export default function ProductUpdateForm({
   } = useForm<UpdateFormData>({
     resolver: zodResolver(updateSchema),
     defaultValues: {
+      _id: product._id,
       name: product.name,
       displayTitle: product.displayTitle,
       group: product.group,
-      price: product.price,
-      priceLabel: product.priceLabel,
       description: product.description,
       displayImage: undefined,
       additionalImages: product.additionalImages
@@ -92,7 +112,7 @@ export default function ProductUpdateForm({
         : [],
       video: product.video || "",
       pdf: product.pdf || "",
-      seoKeywords: product.seoKeywords || "", // Added default value
+      seoKeywords: product.seoKeywords || "",
       specifications: product.specifications || [],
       queries: product.queries || [],
     },
@@ -127,11 +147,10 @@ export default function ProductUpdateForm({
 
   useEffect(() => {
     reset({
+      _id: product._id,
       name: product.name,
       displayTitle: product.displayTitle,
       group: product.group,
-      price: product.price,
-      priceLabel: product.priceLabel,
       description: product.description,
       displayImage: undefined,
       additionalImages: product.additionalImages
@@ -139,16 +158,48 @@ export default function ProductUpdateForm({
         : [],
       video: product.video || "",
       pdf: product.pdf || "",
-      seoKeywords: product.seoKeywords || "", // Reset with existing value
+      seoKeywords: product.seoKeywords || "",
       specifications: product.specifications || [],
       queries: product.queries || [],
     });
     setPreviewDisplayImage(product.displayImage || "");
     setPreviewAdditionalImages(product.additionalImages || []);
+    // Reset name error when product changes
+    setNameError(null);
   }, [product, reset]);
 
   const displayImageFile = watch("displayImage");
   const additionalImagesFiles = watch("additionalImages");
+  const productName = watch("name");
+  const productId = watch("_id");
+
+  // Check name uniqueness when the name changes
+  useEffect(() => {
+    const checkName = async () => {
+      if (!productName || productName === product.name) {
+        setNameError(null);
+        return;
+      }
+
+      setIsCheckingName(true);
+      try {
+        const isUnique = await checkNameUniqueness(productName, productId || '');
+        if (!isUnique) {
+          setNameError("Product name must be unique");
+        } else {
+          setNameError(null);
+        }
+      } catch (error) {
+        console.error("Error checking name uniqueness:", error);
+      } finally {
+        setIsCheckingName(false);
+      }
+    };
+
+    // Use a debounce to avoid too many requests
+    const timeoutId = setTimeout(checkName, 500);
+    return () => clearTimeout(timeoutId);
+  }, [productName, productId, product.name]);
 
   useEffect(() => {
     if (displayImageFile && displayImageFile.length > 0) {
@@ -172,14 +223,24 @@ export default function ProductUpdateForm({
   }, [additionalImagesFiles]);
 
   const onSubmit = async (data: UpdateFormData) => {
+    // Check name uniqueness before submitting
+    if (data.name !== product.name) {
+      setIsCheckingName(true);
+      const isUnique = await checkNameUniqueness(data.name, product._id || '');
+      setIsCheckingName(false);
+      
+      if (!isUnique) {
+        setNameError("Product name must be unique");
+        return; // Prevent form submission
+      }
+    }
+
     setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append("name", data.name);
       formData.append("displayTitle", data.displayTitle);
       formData.append("group", data.group);
-      formData.append("price", data.price.toString());
-      formData.append("priceLabel", data.priceLabel || ""); // New field
       formData.append("description", data.description || "");
       if (data.displayImage && data.displayImage.length > 0) {
         formData.append("displayImage", data.displayImage[0]);
@@ -197,7 +258,7 @@ export default function ProductUpdateForm({
       }
       formData.append("video", data.video ?? "");
       formData.append("pdf", data.pdf ?? "");
-      formData.append("seoKeywords", data.seoKeywords ?? ""); // Add SEO keywords to form data
+      formData.append("seoKeywords", data.seoKeywords ?? "");
 
       const mainResponse = await fetch(`/api/products/${product._id}`, {
         method: "PUT",
@@ -236,11 +297,10 @@ export default function ProductUpdateForm({
       onUpdateComplete(updatedProduct);
 
       reset({
+        _id: updatedProduct._id,
         name: updatedProduct.name,
         displayTitle: updatedProduct.displayTitle,
         group: updatedProduct.group,
-        price: updatedProduct.price,
-        priceLabel: updatedProduct.priceLabel,
         description: updatedProduct.description,
         displayImage: undefined,
         additionalImages: updatedProduct.additionalImages
@@ -248,7 +308,7 @@ export default function ProductUpdateForm({
           : [],
         video: updatedProduct.video || "",
         pdf: updatedProduct.pdf || "",
-        seoKeywords: updatedProduct.seoKeywords || "", // Reset with updated value
+        seoKeywords: updatedProduct.seoKeywords || "",
         specifications: updatedProduct.specifications || [],
         queries: updatedProduct.queries || [],
       });
@@ -287,12 +347,21 @@ export default function ProductUpdateForm({
   };
 
   return (
-    <div className="space-y-8 p-2 bg-white rounded-2xl ">
-      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">
-        Update Product
-      </h2>
+    <div className="space-y-8 p-2 bg-white rounded-2xl">
+      <div className="flex justify-between items-center border-b pb-4">
+        <h2 className="text-3xl font-bold text-gray-800">
+          Update Product
+        </h2>
+        <button
+          type="button"
+          onClick={handleNewProduct}
+          className="px-4 py-2 text-sm font-medium text-white bg-[var(--color-green)] rounded-full hover:bg-[var(--color-green-gradient-end)] transition-all"
+        >
+          New Product
+        </button>
+      </div>
 
-      {(isLoading || isDeleting) && (
+      {(isLoading || isDeleting || isCheckingName) && (
         <div className="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
           <svg
             className="animate-spin h-5 w-5 mr-3 text-[var(--color-green)]"
@@ -314,7 +383,11 @@ export default function ProductUpdateForm({
             />
           </svg>
           <span className="text-gray-700">
-            {isLoading ? "Updating product..." : "Deleting product..."}
+            {isLoading 
+              ? "Updating product..." 
+              : isDeleting 
+                ? "Deleting product..." 
+                : "Checking name..."}
           </span>
         </div>
       )}
@@ -327,11 +400,23 @@ export default function ProductUpdateForm({
             </label>
             <input
               {...register("name")}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+              className={`w-full p-3 border ${
+                nameError ? "border-red-500" : "border-gray-300"
+              } rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent`}
               disabled={isLoading || isDeleting}
             />
             {errors.name && (
-              <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+              <p className="text-red-500 text-sm mt-1">
+                {typeof errors.name?.message === "string" ? errors.name.message : null}
+              </p>
+            )}
+            {nameError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mt-2 flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {nameError}
+              </div>
             )}
           </div>
 
@@ -367,39 +452,6 @@ export default function ProductUpdateForm({
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Price
-            </label>
-            <input
-              {...register("price", { valueAsNumber: true })}
-              type="number"
-              step="1"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
-              disabled={isLoading || isDeleting}
-            />
-            {errors.price && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.price.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Price Label
-            </label>
-            <input
-              {...register("priceLabel")}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
-              disabled={isLoading || isDeleting}
-            />
-            {errors.priceLabel && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.priceLabel.message}
-              </p>
-            )}
-          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Description
@@ -525,7 +577,6 @@ export default function ProductUpdateForm({
           )}
         </div>
 
-        {/* New SEO Keywords Field */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             SEO Keywords
@@ -534,7 +585,6 @@ export default function ProductUpdateForm({
             {...register("seoKeywords")}
             placeholder="Enter SEO keywords (comma-separated)"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
-            disabled={isLoading || isDeleting}
           />
           {errors.seoKeywords && (
             <p className="text-red-500 text-sm mt-1">
@@ -624,7 +674,7 @@ export default function ProductUpdateForm({
                   disabled={isLoading || isDeleting}
                 >
                   <option value="number">Number</option>
-                  <option value="string">String</option>
+                  <option value="string">Message</option>
                 </select>
                 {errors.queries?.[index]?.type &&
                   typeof errors.queries[index]?.type === "object" && (
@@ -657,7 +707,7 @@ export default function ProductUpdateForm({
           <button
             type="submit"
             className="flex-1 px-6 py-3 text-lg font-semibold text-white bg-gradient-to-r from-[var(--color-green-gradient-start)] to-[var(--color-green-gradient-end)] rounded-full hover:from-[var(--color-green-gradient-end)] hover:to-[var(--color-green-gradient-start)] transition-all disabled:opacity-50"
-            disabled={isLoading || isDeleting}
+            disabled={isLoading || isDeleting || isCheckingName || !!nameError}
           >
             Update Product
           </button>

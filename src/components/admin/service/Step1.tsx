@@ -1,4 +1,3 @@
-// app/components/AddService.tsx
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -7,13 +6,10 @@ import * as z from 'zod';
 import { Service } from '@/types/service'; 
 import { useEffect, useState } from 'react';
 
-// Define proper types for the form data
 type FormData = {
   name: string;
   displayTitle: string;
   group: string;
-  price?: number;
-  priceLabel?: string;
   description?: string;
   displayImage?: FileList;
   additionalImages?: FileList[];
@@ -23,15 +19,10 @@ type FormData = {
 };
 
 const createServiceSchema = () => {
-  // Check if we're on the client side
   const isClient = typeof window !== 'undefined';
   
-  // Create a custom file validator to handle both client and server environments
   const FileListValidator = z.custom<FileList>((val) => {
-    // Skip validation on server side
     if (!isClient) return true;
-    
-    // On client side, validate if it's a FileList
     return val instanceof FileList;
   });
 
@@ -39,8 +30,6 @@ const createServiceSchema = () => {
     name: z.string().min(1, 'Service name is required'),
     displayTitle: z.string().min(1, 'Display title is required'),
     group: z.string().min(1, 'Group is required'),
-    price: z.number().min(0, 'Price must be positive').optional(),
-    priceLabel: z.string().optional(),
     description: z.string().optional(),
     displayImage: FileListValidator.refine(
       files => files instanceof FileList && files.length === 1,
@@ -65,7 +54,6 @@ export default function AddService({ onNext }: AddServiceProps) {
   const [additionalImagePreviews, setAdditionalImagePreviews] = useState<string[]>([]);
 
   useEffect(() => {
-    // Set schema only on client side
     setSchema(createServiceSchema());
   }, []);
 
@@ -80,8 +68,6 @@ export default function AddService({ onNext }: AddServiceProps) {
       name: '',
       displayTitle: '',
       group: '',
-      price: undefined,
-      priceLabel: '',
       description: '',
       additionalImages: [],
       video: '',
@@ -95,32 +81,24 @@ export default function AddService({ onNext }: AddServiceProps) {
   const videoUrl = watch('video');
   const pdfUrl = watch('pdf');
 
-  // Update display image preview when file changes
   useEffect(() => {
     if (displayImageFile && displayImageFile[0]) {
       const objectUrl = URL.createObjectURL(displayImageFile[0]);
       setDisplayImagePreview(objectUrl);
-      
-      // Clean up the URL when component unmounts
       return () => URL.revokeObjectURL(objectUrl);
     }
   }, [displayImageFile]);
 
-  // Update additional image previews when files change
   useEffect(() => {
     if (additionalImagesFiles && additionalImagesFiles.length > 0) {
       const newPreviews: string[] = [];
-      
       for (let i = 0; i < additionalImagesFiles.length; i++) {
         if (additionalImagesFiles[i] && additionalImagesFiles[i][0]) {
           const objectUrl = URL.createObjectURL(additionalImagesFiles[i][0]);
           newPreviews[i] = objectUrl;
         }
       }
-      
       setAdditionalImagePreviews(newPreviews);
-      
-      // Clean up URLs when component unmounts
       return () => {
         newPreviews.forEach(url => {
           if (url) URL.revokeObjectURL(url);
@@ -135,13 +113,9 @@ export default function AddService({ onNext }: AddServiceProps) {
 
   const removeAdditionalImageInput = (index: number) => {
     setAdditionalImageInputs(prev => prev.filter((_, i) => i !== index));
-    
-    // Revoke the URL if there's a preview
     if (additionalImagePreviews[index]) {
       URL.revokeObjectURL(additionalImagePreviews[index]);
     }
-    
-    // Update previews array
     setAdditionalImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -149,26 +123,15 @@ export default function AddService({ onNext }: AddServiceProps) {
     setIsLoading(true);
     const formData = new FormData();
     
-    // Add text fields
     formData.append('name', data.name);
     formData.append('displayTitle', data.displayTitle);
     formData.append('group', data.group);
-    if (data.price !== undefined) {
-      formData.append('price', data.price.toString());
-    }
-    if (data.priceLabel) {
-      formData.append('priceLabel', data.priceLabel);
-    }
     if (data.description) {
       formData.append('description', data.description);
     }
-    
-    // Add display image if provided
     if (data.displayImage && data.displayImage[0]) {
       formData.append('displayImage', data.displayImage[0]);
     }
-    
-    // Add additional images if provided
     if (data.additionalImages && data.additionalImages.length > 0) {
       for (let i = 0; i < data.additionalImages.length; i++) {
         const fileList = data.additionalImages[i];
@@ -177,8 +140,6 @@ export default function AddService({ onNext }: AddServiceProps) {
         }
       }
     }
-    
-    // Add optional fields
     if (data.video) {
       formData.append('video', data.video);
     }
@@ -201,13 +162,10 @@ export default function AddService({ onNext }: AddServiceProps) {
       
       const result = await res.json();
 
-      // Prepare service data to pass to the next step
       const serviceData: Partial<Service> = {
         name: data.name,
         displayTitle: data.displayTitle,
         group: data.group,
-        price: data.price,
-        priceLabel: data.priceLabel,
         description: data.description,
         displayImage: displayImagePreview || '',
         additionalImages: additionalImagePreviews.filter(url => !!url),
@@ -219,7 +177,6 @@ export default function AddService({ onNext }: AddServiceProps) {
       onNext(result.id, serviceData);
     } catch (error) {
       console.error('Error creating service:', error);
-      // Handle error (could add error state and display to user)
     } finally {
       setIsLoading(false);
     }
@@ -278,39 +235,16 @@ export default function AddService({ onNext }: AddServiceProps) {
         </div>
 
         <div>
-          <label className="block text-base font-medium text-gray-700 mb-1">Price</label>
-          <input
-            {...register('price', { valueAsNumber: true })}
-            type="number"
-            placeholder="Enter price"
+          <label className="block text-base font-medium text-gray-700 mb-1">Service Description</label>
+          <textarea
+            {...register('description')}
+            placeholder="Enter service description"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
+            rows={4}
             disabled={isLoading}
           />
-          {errors.price && <p className="text-red-500 text-base mt-1">{errors.price.message as string}</p>}
+          {errors.description && <p className="text-red-500 text-base mt-1">{errors.description.message as string}</p>}
         </div>
-      </div>
-
-      <div>
-        <label className="block text-base font-medium text-gray-700 mb-1">Price Label</label>
-        <input
-          {...register('priceLabel')}
-          placeholder="e.g., Monthly, One-time"
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
-          disabled={isLoading}
-        />
-        {errors.priceLabel && <p className="text-red-500 text-base mt-1">{errors.priceLabel.message as string}</p>}
-      </div>
-
-      <div>
-        <label className="block text-base font-medium text-gray-700 mb-1">Service Description</label>
-        <textarea
-          {...register('description')}
-          placeholder="Enter service description"
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
-          rows={4}
-          disabled={isLoading}
-        />
-        {errors.description && <p className="text-red-500 text-base mt-1">{errors.description.message as string}</p>}
       </div>
 
       <div>

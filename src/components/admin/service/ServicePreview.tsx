@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Service } from "@/types/service";
+import { Service } from '@/types/service';
 
 interface ServicePreviewProps {
   service: Partial<Service>;
@@ -25,10 +25,6 @@ export default function ServicePreview({ service }: ServicePreviewProps) {
             {service.displayTitle}
           </h4>
           <p className="text-gray-500">Group: {service.group}</p>
-          <p className="text-gray-600">
-            Price: ${service.price || 0}
-            {service.priceLabel ? ` (${service.priceLabel})` : ""}
-          </p>
 
           {service.description && (
             <div>
@@ -45,7 +41,7 @@ export default function ServicePreview({ service }: ServicePreviewProps) {
               </h5>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 {service.additionalImages
-                  .filter((img): img is string => !!img && img !== "") // Type guard and filter
+                  .filter((img): img is string => !!img && img !== "")
                   .map((img, index) => (
                     <img
                       key={index}

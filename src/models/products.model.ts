@@ -14,7 +14,7 @@ const querySchema = new Schema({
 });
 
 const productSchema = new Schema({
-  name: { type: String, required: true },
+  name: { type: String, required: true, unique: true },
   displayTitle: { type: String, required: true },
   group: { type: String, required: true },
   price: { type: Number, min: 0 },

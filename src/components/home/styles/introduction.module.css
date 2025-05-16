@@ -10,6 +10,6 @@
 }
 
 .hoverAnimation:hover {
-  box-shadow: 1px 1px 33px #0dac9a, -1px -1px 33px #ffffff;
+  box-shadow: 1px 1px 10px #0dac9a, -1px -1px 3px #ffffff;
   transform: translateY(-2px);
 }

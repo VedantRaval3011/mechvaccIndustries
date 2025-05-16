@@ -2,26 +2,32 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Service } from "@/types/service";
-import { useSearchParams } from "next/navigation";
-import { Search, Filter, ChevronRight, List, X, Star } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Search, ChevronRight, List, X, Star } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Suspense } from "react"; // Import Suspense
+import { Suspense } from "react";
+
+// Function to convert service name to URL slug
+const createSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-')     // Replace spaces with hyphens
+    .replace(/-+/g, '-')      // Remove duplicate hyphens
+    .trim();
+};
 
 // Child component containing the main logic and UI
 function ServicesContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [services, setServices] = useState<Service[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [priceFilter, setPriceFilter] = useState<{ min: number; max: number }>({
-    min: 0,
-    max: Infinity,
-  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeGroup, setActiveGroup] = useState<string>(
     searchParams.get("activeGroup") || "all"
   );
-  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   // Sync activeGroup with URL changes
   useEffect(() => {
@@ -63,14 +69,11 @@ function ServicesContent() {
       filtered[group] = groupServices.filter((service) => {
         const nameMatch = service.name.toLowerCase().includes(query);
         const groupMatch = service.group.toLowerCase().includes(query);
-        const priceMatch =
-          (service.price ?? 0) >= priceFilter.min &&
-          (service.price ?? 0) <= priceFilter.max;
-        return (nameMatch || groupMatch) && priceMatch;
+        return nameMatch || groupMatch;
       });
     }
     return filtered;
-  }, [groupedServices, searchQuery, priceFilter]);
+  }, [groupedServices, searchQuery]);
 
   const allFilteredServices = useMemo(() => {
     return Object.values(filteredGroupedServices).flat();
@@ -80,23 +83,15 @@ function ServicesContent() {
     setSearchQuery(e.target.value);
   };
 
-  const handlePriceFilterChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    type: "min" | "max"
-  ) => {
-    const value =
-      e.target.value === ""
-        ? type === "min"
-          ? 0
-          : Infinity
-        : parseFloat(e.target.value);
-    setPriceFilter((prev) => ({ ...prev, [type]: value }));
-  };
-
   const resetFilters = () => {
     setSearchQuery("");
-    setPriceFilter({ min: 0, max: Infinity });
     setActiveGroup("all");
+    router.push("/services");
+  };
+
+  const handleGroupChange = (group: string) => {
+    setActiveGroup(group);
+    router.push(`/services?activeGroup=${encodeURIComponent(group)}`);
   };
 
   const allGroups = Object.keys(filteredGroupedServices);
@@ -142,104 +137,37 @@ function ServicesContent() {
           </p>
         </motion.div>
 
-        {/* Search and Filter Section */}
+        {/* Search Section */}
         <motion.div
-          className="mb-12 bg-white rounded-2xl p-6 shadow-lg overflow-hidden"
+          className="mb-12 bg-white rounded-2xl p-6 shadow-lg"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-            <div className="relative w-full md:w-1/2">
-              <motion.div
-                className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
-                whileHover={{ scale: 1.1 }}
-              >
-                <Search className="text-[var(--color-green)] h-6 w-6" />
-              </motion.div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                placeholder="Search for a service..."
-                className="w-full p-4 pl-14 rounded-xl border-2 border-gray-200 text-[var(--color-black)] focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent shadow-sm placeholder-gray-400 text-lg transition-all duration-300"
-              />
-              {searchQuery && (
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </motion.button>
-              )}
-            </div>
-
+          <div className="relative w-full">
             <motion.div
-              className="flex items-center gap-4"
-              whileHover={{ scale: 1.02 }}
+              className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+              whileHover={{ scale: 1.1 }}
             >
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-[var(--color-black)] font-medium transition-all duration-300"
-              >
-                <Filter className="text-[var(--color-green)] h-5 w-5" />
-                <span>Filters</span>
-                <motion.span
-                  animate={{ rotate: showFilters ? 180 : 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </motion.span>
-              </motion.button>
-
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={resetFilters}
-                className="px-5 py-3 rounded-xl bg-[var(--color-green)] text-white font-medium hover:bg-opacity-90 transition-all duration-300"
-              >
-                Reset
-              </motion.button>
+              <Search className="text-[var(--color-green)] h-6 w-6" />
             </motion.div>
-          </div>
-
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden"
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search for a service..."
+              className="w-full p-4 pl-14 rounded-xl border-2 border-gray-200 text-[var(--color-black)] focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent shadow-sm placeholder-gray-400 text-lg transition-all duration-300"
+            />
+            {searchQuery && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setSearchQuery("")}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
-                <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-3">
-                      PRICE RANGE
-                    </h3>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="number"
-                        placeholder="Min"
-                        value={priceFilter.min === 0 ? "" : priceFilter.min}
-                        onChange={(e) => handlePriceFilterChange(e, "min")}
-                        className="p-3 rounded-lg border-2 border-gray-200 w-full text-[var(--color-black)] focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all duration-300"
-                      />
-                      <span className="text-gray-400">-</span>
-                      <input
-                        type="number"
-                        placeholder="Max"
-                        value={priceFilter.max === Infinity ? "" : priceFilter.max}
-                        onChange={(e) => handlePriceFilterChange(e, "max")}
-                        className="p-3 rounded-lg border-2 border-gray-200 w-full text-[var(--color-black)] focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all duration-300"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+                <X className="h-5 w-5" />
+              </motion.button>
             )}
-          </AnimatePresence>
+          </div>
         </motion.div>
 
         {/* Group Navigation */}
@@ -254,7 +182,7 @@ function ServicesContent() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveGroup("all")}
+                onClick={() => handleGroupChange("all")}
                 className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
                   activeGroup === "all"
                     ? "bg-[var(--color-green)] text-white shadow-md"
@@ -270,13 +198,13 @@ function ServicesContent() {
                   key={group}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveGroup(group)}
+                  onClick={() => handleGroupChange(group)}
                   className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
                     activeGroup === group
                       ? "bg-[var(--color-green)] text-white shadow-md"
                       : "bg-white text-[var(--color-black)] border-2 border-gray-200 hover:border-[var(--color-green)] hover:text-[var(--color-green)]"
                   }`}
-              >
+                >
                   {group}
                 </motion.button>
               ))}
@@ -364,17 +292,6 @@ function ServicesContent() {
                         </motion.div>
                       </div>
                     )}
-
-                    {service.price && (
-                      <motion.div
-                        className="absolute top-4 right-4 bg-[var(--color-green)] text-white py-1 px-3 rounded-full font-bold text-sm shadow-md"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 + index * 0.1 }}
-                      >
-                        ₹{service.price} ({service.priceLabel})
-                      </motion.div>
-                    )}
                   </div>
 
                   <div className="p-6">
@@ -447,7 +364,7 @@ function ServicesContent() {
                         )}
                       </div>
 
-                      <Link href={`/services/${service._id}`}>
+                      <Link href={`/services/${createSlug(service.name)}`}>
                         <motion.button
                           className="flex items-center px-5 py-2 bg-[var(--color-green)] text-white rounded-xl hover:bg-opacity-90 transition-all duration-300 font-medium cursor-pointer"
                           whileHover={{

@@ -1,7 +1,4 @@
-// app/components/Step1.tsx
 "use client";
-
-/// <reference lib="dom" />
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,21 +7,19 @@ import { Product } from "@/types/product";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
-// Create a custom type guard for FileList
-const isFileList = (value: unknown): value is FileList => 
-  value !== null && 
-  typeof value === 'object' && 
-  'length' in value && 
-  'item' in value;
+// Custom type guard for FileList
+const isFileList = (value: unknown): value is FileList =>
+  value !== null &&
+  typeof value === "object" &&
+  "length" in value &&
+  "item" in value;
 
-// Define the form schema with proper file types
+// Define the form schema
 const createSchema = () =>
   z.object({
     name: z.string().min(1, "Product name is required"),
     displayTitle: z.string().min(1, "Display title is required"),
     group: z.string().min(1, "Group is required"),
-    price: z.number().min(0, "Price must be positive").optional(),
-    priceLabel: z.string().optional(),
     description: z.string().optional(),
     displayImage: z
       .unknown()
@@ -32,9 +27,12 @@ const createSchema = () =>
       .refine((files: FileList) => files.length === 1, "Display image is required")
       .transform((files: FileList) => files[0] as File),
     additionalImages: z
-      .array(z.unknown()
-        .refine(isFileList, "Additional image must be a file")
-        .transform((files: FileList) => files.length > 0 ? files[0] : null))
+      .array(
+        z
+          .unknown()
+          .refine(isFileList, "Additional image must be a file")
+          .transform((files: FileList) => (files.length > 0 ? files[0] : null))
+      )
       .optional()
       .transform((files) => files?.filter((file): file is File => file !== null) ?? []),
     video: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -50,14 +48,12 @@ interface Step1Props {
 }
 
 export default function Step1({ onNext }: Step1Props) {
-  const [schema, setSchema] = useState(() => createSchema());
+  const schema = createSchema();
   const [isLoading, setIsLoading] = useState(false);
   const [displayImagePreview, setDisplayImagePreview] = useState<string | null>(null);
   const [additionalImagePreviews, setAdditionalImagePreviews] = useState<string[]>([]);
-
-  useEffect(() => {
-    setSchema(createSchema());
-  }, []);
+  const [isCheckingName, setIsCheckingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const {
     register,
@@ -66,12 +62,11 @@ export default function Step1({ onNext }: Step1Props) {
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    mode: "onBlur",
     defaultValues: {
       name: "",
       displayTitle: "",
       group: "",
-      price: undefined,
-      priceLabel: "",
       description: "",
       displayImage: undefined,
       additionalImages: [],
@@ -81,19 +76,60 @@ export default function Step1({ onNext }: Step1Props) {
     },
   });
 
-  // Create a separate state for managing additional images
+  // Watch the name field for real-time validation
+  const productName = watch("name");
+
+  // Check name uniqueness with debounce
+  useEffect(() => {
+    if (!productName || productName.length < 3) {
+      setNameError(null);
+      return;
+    }
+
+    const checkNameUniqueness = async () => {
+      setIsCheckingName(true);
+      try {
+        const response = await fetch(
+          `/api/products/check-name?name=${encodeURIComponent(productName)}`
+        );
+        const data = await response.json();
+        
+        if (data.exists) {
+          setNameError("Product name must be unique");
+          // Show alert
+          alert("Product name must be unique");
+        } else {
+          setNameError(null);
+        }
+      } catch (error) {
+        console.error("Error checking name uniqueness:", error);
+        setNameError("Error checking name uniqueness");
+      } finally {
+        setIsCheckingName(false);
+      }
+    };
+
+    // Use debounce to prevent too many API calls
+    const timeoutId = setTimeout(() => {
+      checkNameUniqueness();
+    }, 500); // 500ms debounce
+
+    // Cleanup timeout on component unmount or when productName changes
+    return () => clearTimeout(timeoutId);
+  }, [productName]);
+
+  // Manage additional image fields
   const [additionalImageFields, setAdditionalImageFields] = useState<{ id: string }[]>([]);
-  
+
   const addImageField = () => {
     setAdditionalImageFields([...additionalImageFields, { id: `img-${Date.now()}` }]);
   };
-  
+
   const removeImageField = (index: number) => {
     const newFields = [...additionalImageFields];
     newFields.splice(index, 1);
     setAdditionalImageFields(newFields);
-    
-    // Also remove the preview
+
     const newPreviews = [...additionalImagePreviews];
     newPreviews.splice(index, 1);
     setAdditionalImagePreviews(newPreviews);
@@ -105,11 +141,7 @@ export default function Step1({ onNext }: Step1Props) {
     if (displayImageField instanceof File) {
       const objectUrl = URL.createObjectURL(displayImageField);
       setDisplayImagePreview(objectUrl);
-      
-      // Clean up the URL when component unmounts
-      return () => {
-        URL.revokeObjectURL(objectUrl);
-      };
+      return () => URL.revokeObjectURL(objectUrl);
     }
   }, [displayImageField]);
 
@@ -117,13 +149,11 @@ export default function Step1({ onNext }: Step1Props) {
   const additionalImagesField = watch("additionalImages");
   useEffect(() => {
     if (additionalImagesField && additionalImagesField.length > 0) {
-      const previews = additionalImagesField.map(file => URL.createObjectURL(file));
+      const previews = additionalImagesField.map((file) => URL.createObjectURL(file));
       setAdditionalImagePreviews(previews);
-      
-      // Clean up URLs when component unmounts
-      return () => {
-        previews.forEach(url => URL.revokeObjectURL(url));
-      };
+      return () => previews.forEach((url) => URL.revokeObjectURL(url));
+    } else {
+      setAdditionalImagePreviews([]);
     }
   }, [additionalImagesField]);
 
@@ -131,56 +161,62 @@ export default function Step1({ onNext }: Step1Props) {
   const pdfUrl = watch("pdf");
 
   const onSubmit = async (data: FormData) => {
+    // Final uniqueness check before submission
+    if (nameError) {
+      alert("Please choose a unique product name before proceeding.");
+      return;
+    }
+    
     setIsLoading(true);
     const formData = new FormData();
     formData.append("name", data.name);
     formData.append("displayTitle", data.displayTitle);
     formData.append("group", data.group);
-    formData.append("price", data.price?.toString() || "");
-    formData.append("priceLabel", data.priceLabel || "");
     formData.append("description", data.description || "");
     formData.append("displayImage", data.displayImage);
     if (data.additionalImages && data.additionalImages.length > 0) {
       data.additionalImages.forEach((file) => formData.append("additionalImages", file));
     }
-    // Handle optional fields with default empty string
     formData.append("video", data.video || "");
     formData.append("pdf", data.pdf || "");
     formData.append("seoKeywords", data.seoKeywords || "");
 
-    const res = await fetch("/api/products/step1", {
-      method: "POST",
-      body: formData,
-    });
-    const result = await res.json();
+    try {
+      const res = await fetch("/api/products/step1", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        throw new Error("Failed to save product");
+      }
+      
+      const result = await res.json();
 
-    const productData: Partial<Product> = {
-      name: data.name,
-      displayTitle: data.displayTitle,
-      group: data.group,
-      price: data.price,
-      priceLabel: data.priceLabel,
-      description: data.description,
-      // Use the preview URLs we already created
-      displayImage: displayImagePreview || "",
-      additionalImages: additionalImagePreviews,
-      video: data.video,
-      pdf: data.pdf,
-      seoKeywords: data.seoKeywords,
-    };
+      const productData: Partial<Product> = {
+        name: data.name,
+        displayTitle: data.displayTitle,
+        group: data.group,
+        description: data.description,
+        displayImage: displayImagePreview || "",
+        additionalImages: additionalImagePreviews,
+        video: data.video,
+        pdf: data.pdf,
+        seoKeywords: data.seoKeywords,
+      };
 
-    onNext(result.id, productData);
-    setIsLoading(false);
+      onNext(result.id, productData);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      alert("Failed to save product. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="space-y-8 p-2 bg-white rounded-2xl"
-    >
-      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">
-        Product Details
-      </h2>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-2 bg-white rounded-2xl">
+      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">Product Details</h2>
 
       {isLoading && (
         <div className="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
@@ -212,13 +248,41 @@ export default function Step1({ onNext }: Step1Props) {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Product Name
           </label>
-          <input
-            {...register("name")}
-            placeholder="Enter product name"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
-            disabled={isLoading}
-          />
-          {errors.name && (
+          <div className="relative">
+            <input
+              {...register("name")}
+              placeholder="Enter product name"
+              className={`w-full p-3 border ${
+                nameError ? "border-red-500" : "border-gray-300"
+              } rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all`}
+              disabled={isLoading}
+            />
+            {isCheckingName && (
+              <div className="absolute right-3 top-3">
+                <svg
+                  className="animate-spin h-5 w-5 text-gray-400"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              </div>
+            )}
+          </div>
+          {nameError && <p className="text-red-500 text-base mt-1">{nameError}</p>}
+          {errors.name && !nameError && (
             <p className="text-red-500 text-base mt-1">{errors.name.message}</p>
           )}
         </div>
@@ -234,9 +298,7 @@ export default function Step1({ onNext }: Step1Props) {
             disabled={isLoading}
           />
           {errors.displayTitle && (
-            <p className="text-red-500 text-base mt-1">
-              {errors.displayTitle.message}
-            </p>
+            <p className="text-red-500 text-base mt-1">{errors.displayTitle.message}</p>
           )}
         </div>
 
@@ -251,44 +313,7 @@ export default function Step1({ onNext }: Step1Props) {
             disabled={isLoading}
           />
           {errors.group && (
-            <p className="text-red-500 text-base mt-1">
-              {errors.group.message}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-base font-medium text-gray-700 mb-1">
-            Price
-          </label>
-          <input
-            {...register("price", { valueAsNumber: true })}
-            type="number"
-            placeholder="Enter price"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
-            disabled={isLoading}
-          />
-          {errors.price && (
-            <p className="text-red-500 text-base mt-1">
-              {errors.price.message}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-base font-medium text-gray-700 mb-1">
-            Price Label
-          </label>
-          <input
-            {...register("priceLabel")}
-            placeholder="e.g., Monthly, One-time"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
-            disabled={isLoading}
-          />
-          {errors.priceLabel && (
-            <p className="text-red-500 text-base mt-1">
-              {errors.priceLabel.message}
-            </p>
+            <p className="text-red-500 text-base mt-1">{errors.group.message}</p>
           )}
         </div>
 
@@ -304,9 +329,7 @@ export default function Step1({ onNext }: Step1Props) {
             disabled={isLoading}
           />
           {errors.description && (
-            <p className="text-red-500 text-base mt-1">
-              {errors.description.message}
-            </p>
+            <p className="text-red-500 text-base mt-1">{errors.description.message}</p>
           )}
         </div>
       </div>
@@ -323,15 +346,15 @@ export default function Step1({ onNext }: Step1Props) {
           disabled={isLoading}
         />
         {errors.displayImage?.message && (
-          <p className="text-red-500 text-base mt-1">
-            {errors.displayImage.message}
-          </p>
+          <p className="text-red-500 text-base mt-1">{errors.displayImage.message}</p>
         )}
         {displayImagePreview && (
           <Image
             src={displayImagePreview}
             alt="Display Preview"
             className="mt-4 h-40 w-auto rounded-lg shadow-md"
+            width={160}
+            height={160}
           />
         )}
       </div>
@@ -362,6 +385,8 @@ export default function Step1({ onNext }: Step1Props) {
                 src={additionalImagePreviews[index]}
                 alt="Additional Preview"
                 className="h-24 w-auto rounded-lg shadow-md"
+                width={96}
+                height={96}
               />
             )}
           </div>
@@ -377,7 +402,7 @@ export default function Step1({ onNext }: Step1Props) {
       </div>
 
       <div>
-      <label className="block text-base font-medium text-gray-700 mb-1">
+        <label className="block text-base font-medium text-gray-700 mb-1">
           SEO Keywords
         </label>
         <input
@@ -387,9 +412,7 @@ export default function Step1({ onNext }: Step1Props) {
           disabled={isLoading}
         />
         {errors.seoKeywords && (
-          <p className="text-red-500 text-base mt-1">
-            {errors.seoKeywords.message}
-          </p>
+          <p className="text-red-500 text-base mt-1">{errors.seoKeywords.message}</p>
         )}
         <p className="text-gray-500 text-base mt-2">
           e.g., product, sale, discount
@@ -457,7 +480,7 @@ export default function Step1({ onNext }: Step1Props) {
       <button
         type="submit"
         className="w-full inline-flex justify-center items-center px-6 py-3 text-lg font-semibold text-white bg-gradient-to-r from-[var(--color-green-gradient-start)] to-[var(--color-green-gradient-end)] rounded-full hover:from-[var(--color-green-gradient-end)] hover:to-[var(--color-green-gradient-start)] transition-all transform hover:-translate-y-1 hover:shadow-lg disabled:opacity-50"
-        disabled={isLoading}
+        disabled={isLoading || isCheckingName || !!nameError}
       >
         Next
       </button>

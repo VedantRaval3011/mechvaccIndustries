@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import ProductList from "@/components/admin/products/ProductList";
@@ -34,33 +33,30 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen py-12 bg-gray-100">
-      <div className="container mx-auto px-6 lg:px-12">
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+    <div className="min-h-screen py-8 sm:py-12 bg-gray-100">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-12">
+        <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-3 lg:gap-10">
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-xl p-8">
+            <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
               {/* Step Tracker with Water Effect */}
               {!selectedProduct && (
-                // Inside the Home component's return statement
-                <div className="step-tracker mb-8">
-                  <div className="steps-container">
-                    <div className={`step z-10 ${step >= 1 ? "active" : ""}`}>
-                      <span className="step-number">1</span>
-                      <span className="step-label">Step 1</span>
+                <div className="step-tracker mb-6 sm:mb-8">
+                  <div className="steps-container flex justify-between relative">
+                    <div className={`step z-10 ${step >= 1 ? "active" : ""} flex flex-col items-center`}>
+                      <span className="step-number text-sm sm:text-base w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-200 text-gray-600 ${step >= 1 ? 'bg-green-400 text-white' : ''}">1</span>
+                      <span className="step-label text-xs sm:text-sm mt-2">Step 1</span>
                     </div>
-                    <div className={`step z-10 ${step >= 2 ? "active" : ""}`}>
-                      <span className="step-number">2</span>
-                      <span className="step-label">Step 2</span>
+                    <div className={`step z-10 ${step >= 2 ? "active" : ""} flex flex-col items-center`}>
+                      <span className="step-number text-sm sm:text-base w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-200 text-gray-600 ${step >= 2 ? 'bg-green-400 text-white' : ''}">2</span>
+                      <span className="step-label text-xs sm:text-sm mt-2">Step 2</span>
                     </div>
-                    <div className={`step z-10 ${step >= 3 ? "active" : ""}`}>
-                      <span className="step-number">3</span>
-                      <span className="step-label">Step 3</span>
+                    <div className={`step z-10 ${step >= 3 ? "active" : ""} flex flex-col items-center`}>
+                      <span className="step-number text-sm sm:text-base w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-200 text-gray-600 ${step >= 3 ? 'bg-green-400 text-white' : ''}">3</span>
+                      <span className="step-label text-xs sm:text-sm mt-2">Step 3</span>
                     </div>
-                    <div className="water-shimmer"></div> {/* Shimmer layer */}
+                    <div className="water-shimmer absolute top-0 left-0 h-full w-full bg-gradient-to-r from-transparent via-blue-200/50 to-transparent animate-shimmer"></div>
                   </div>
-                  {/* SVG filter for wave effect */}
-                  <svg className="wave-filter">
+                  <svg className="wave-filter hidden">
                     <defs>
                       <filter id="waveFilter">
                         <feTurbulence
@@ -105,7 +101,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-12">
+        <div className="mt-8 sm:mt-12">
           <ProductList onProductSelect={handleProductSelect} />
         </div>
       </div>

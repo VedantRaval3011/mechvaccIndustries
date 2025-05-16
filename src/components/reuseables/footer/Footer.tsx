@@ -42,7 +42,7 @@ const Footer = () => {
           </div>
           <div className="flex flex-col lg:flex-row gap-2 lg:items-center justify-between">
             <MobileViewFooter />
-            <div className="hidden lg:flex gap-10 font-thin text-sm mx-3 xl:text-base md:mt-8">
+            <div className="hidden lg:flex gap-5 text-sm mx-3 xl:text-lg md:mt-8 font-light" style={{ WebkitFontSmoothing: 'none', textRendering: 'optimizeLegibility', }}>
               <div>
                 <h2>Products</h2>
                 <ul className=" py-2">

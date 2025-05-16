@@ -380,8 +380,7 @@ const Navbar: React.FC = () => {
   const isMaintenance = MAINTENANCE_MODE && NODE_ENV === 'production';
 
   return (
-    !isMaintenance ? (
-      <>
+    <>
       <nav className="py-2 pb-3 text-[#50c2a7] sticky top-0 bg-white shadow-lg z-50 xl:py-3 xl:pb-3.5 antialiased">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-2">
           <div className="flex justify-between items-center h-16">
@@ -546,11 +545,6 @@ const Navbar: React.FC = () => {
         </>
       )}
     </>
-    ) : (
-      <div>
-        <p>We&apsos;ll be back soon!</p>
-      </div>
-    )
   );
 };
 

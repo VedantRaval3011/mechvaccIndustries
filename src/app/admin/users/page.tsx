@@ -1,9 +1,9 @@
-// app/components/admin/ManageUsers.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import * as XLSX from 'xlsx';
 
 interface EnquiryUser {
   _id: string;
@@ -14,6 +14,8 @@ interface EnquiryUser {
   message: string;
   country: string;
   createdAt: Date;
+  source?: string;
+  status?: string;
 }
 
 interface InterestedUser {
@@ -22,6 +24,20 @@ interface InterestedUser {
   productTitle: string;
   queries: { title: string; type: string; value: string }[];
   createdAt: Date;
+  source?: string;
+  status?: string;
+}
+
+interface FilterOptions {
+  startDate: string;
+  endDate: string;
+  searchQuery: string;
+  year: string;
+  month: string;
+  source: string;
+  status: string;
+  country: string;
+  product: string;
 }
 
 export default function ManageUsers() {
@@ -29,6 +45,23 @@ export default function ManageUsers() {
   const [interestedUsers, setInterestedUsers] = useState<InterestedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"enquiry" | "interested">("enquiry");
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    startDate: "",
+    endDate: "",
+    searchQuery: "",
+    year: "",
+    month: "",
+    source: "",
+    status: "",
+    country: "",
+    product: ""
+  });
+
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -52,16 +85,204 @@ export default function ManageUsers() {
     fetchUsers();
   }, []);
 
+  // Enhanced filtering
+  const filteredEnquiryUsers = enquiryUsers.filter(user => {
+    const userDate = new Date(user.createdAt);
+    const userYear = userDate.getFullYear().toString();
+    const userMonth = (userDate.getMonth() + 1).toString();
+
+    if (filterOptions.startDate && new Date(filterOptions.startDate) > userDate) return false;
+    if (filterOptions.endDate && new Date(filterOptions.endDate) < userDate) return false;
+    if (filterOptions.year && filterOptions.year !== userYear) return false;
+    if (filterOptions.month && filterOptions.month !== userMonth) return false;
+    if (filterOptions.source && user.source !== filterOptions.source) return false;
+    if (filterOptions.status && user.status !== filterOptions.status) return false;
+    if (filterOptions.country && user.country !== filterOptions.country) return false;
+
+    if (filterOptions.searchQuery) {
+      const query = filterOptions.searchQuery.toLowerCase();
+      return (
+        user.firstname.toLowerCase().includes(query) ||
+        user.lastname.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query) ||
+        user.contact.toLowerCase().includes(query) ||
+        user.message.toLowerCase().includes(query) ||
+        user.country.toLowerCase().includes(query) ||
+        (user.source?.toLowerCase().includes(query) || false)
+      );
+    }
+
+    return true;
+  });
+
+  const filteredInterestedUsers = interestedUsers.filter(user => {
+    const userDate = new Date(user.createdAt);
+    const userYear = userDate.getFullYear().toString();
+    const userMonth = (userDate.getMonth() + 1).toString();
+
+    if (filterOptions.startDate && new Date(filterOptions.startDate) > userDate) return false;
+    if (filterOptions.endDate && new Date(filterOptions.endDate) < userDate) return false;
+    if (filterOptions.year && filterOptions.year !== userYear) return false;
+    if (filterOptions.month && filterOptions.month !== userMonth) return false;
+    if (filterOptions.source && (user.source || '') !== filterOptions.source) return false;
+    if (filterOptions.status && (user.status || '') !== filterOptions.status) return false;
+    if (filterOptions.product && user.productTitle !== filterOptions.product) return false;
+
+    if (filterOptions.searchQuery) {
+      const query = filterOptions.searchQuery.toLowerCase();
+      return (
+        user.productTitle.toLowerCase().includes(query) ||
+        user.productId.toLowerCase().includes(query) ||
+        user.queries.some(q =>
+          q.title.toLowerCase().includes(query) ||
+          q.value.toLowerCase().includes(query)
+        ) ||
+        (user.source?.toLowerCase().includes(query) || false)
+      );
+    }
+
+    return true;
+  });
+
+  // Filter options data
+  const getYears = () => {
+    const years = new Set<string>();
+    [...enquiryUsers, ...interestedUsers].forEach(user => {
+      years.add(new Date(user.createdAt).getFullYear().toString());
+    });
+    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  };
+
+  const getMonths = () => [
+    { value: "1", label: "January" },
+    { value: "2", label: "February" },
+    { value: "3", label: "March" },
+    { value: "4", label: "April" },
+    { value: "5", label: "May" },
+    { value: "6", label: "June" },
+    { value: "7", label: "July" },
+    { value: "8", label: "August" },
+    { value: "9", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" }
+  ];
+
+  const getSources = () => {
+    const sources = new Set<string>();
+    [...enquiryUsers, ...interestedUsers].forEach(user => {
+      if (user.source) sources.add(user.source);
+    });
+    return Array.from(sources).sort();
+  };
+
+  const getStatuses = () => {
+    const statuses = new Set<string>();
+    [...enquiryUsers, ...interestedUsers].forEach(user => {
+      if (user.status) statuses.add(user.status);
+    });
+    return Array.from(statuses).sort();
+  };
+
+  const getCountries = () => {
+    const countries = new Set<string>();
+    enquiryUsers.forEach(user => {
+      if (user.country) countries.add(user.country);
+    });
+    return Array.from(countries).sort();
+  };
+
+  const getProducts = () => {
+    const products = new Set<string>();
+    interestedUsers.forEach(user => {
+      if (user.productTitle) products.add(user.productTitle);
+    });
+    return Array.from(products).sort();
+  };
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    setCopiedId(id);
+    copyTimeoutRef.current = setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const toggleLeadSelection = (id: string) => {
+    setSelectedLeads(prev =>
+      prev.includes(id) ? prev.filter(leadId => leadId !== id) : [...prev, id]
+    );
+  };
+
+  const exportLeadsToExcel = () => {
+    let dataToExport = [];
+    const timestamp = new Date().toISOString().split('T')[0];
+
+    if (activeTab === "enquiry") {
+      const leadsToExport = selectedLeads.length > 0
+        ? filteredEnquiryUsers.filter(user => selectedLeads.includes(user._id))
+        : filteredEnquiryUsers;
+
+      dataToExport = leadsToExport.map(user => ({
+        'First Name': user.firstname,
+        'Last Name': user.lastname,
+        'Email': user.email,
+        'Country': user.country,
+        'Contact': user.contact,
+        'Message': user.message,
+        'Source': user.source || '',
+        'Status': user.status || '',
+        'Date': new Date(user.createdAt).toLocaleString()
+      }));
+    } else {
+      const leadsToExport = selectedLeads.length > 0
+        ? filteredInterestedUsers.filter(user => selectedLeads.includes(user._id))
+        : filteredInterestedUsers;
+
+      dataToExport = leadsToExport.map(user => {
+        const baseData: { [key: string]: string } = {
+          'Product': user.productTitle,
+          'Product ID': user.productId,
+          'Source': user.source || '',
+          'Status': user.status || '',
+          'Date': new Date(user.createdAt).toLocaleString()
+        };
+        user.queries.forEach(query => {
+          baseData[query.title] = query.value;
+        });
+        return baseData;
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === "enquiry" ? "Enquiry Users" : "Interested Users");
+    XLSX.writeFile(workbook, `${activeTab}_leads_${timestamp}.xlsx`);
+  };
+
+  const resetFilters = () => {
+    setFilterOptions({
+      startDate: "",
+      endDate: "",
+      searchQuery: "",
+      year: "",
+      month: "",
+      source: "",
+      status: "",
+      country: "",
+      product: ""
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-gray-100">
         <motion.div
-          animate={{  scale: [1, 1.2, 1] }}
+          animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          className="text-[var(--color-green)] text-2xl font-futuristic"
+          className="text-[var(--color-green)] text-xl sm:text-2xl md:text-3xl font-futuristic"
         >
           <span className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-[var(--color-green)] rounded-full animate-pulse" />
+            <div className="w-5 h-5 sm:w-6 sm:h-6 bg-[var(--color-green)] rounded-full animate-pulse" />
             Initializing Data Matrix...
           </span>
         </motion.div>
@@ -75,7 +296,7 @@ export default function ManageUsers() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-red-600 text-2xl font-futuristic p-6 bg-red-100/50 backdrop-blur-md rounded-lg"
+          className="text-red-600 text-xl sm:text-2xl md:text-3xl font-futuristic p-6 sm:p-8 bg-red-100/50 backdrop-blur-md rounded-lg"
         >
           System Error: {error}
         </motion.div>
@@ -84,16 +305,29 @@ export default function ManageUsers() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 py-12 px-4">
-      {/* Back Button */}
+    <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 py-8 sm:py-12 px-4 sm:px-6">
       <motion.div
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="max-w-6xl mx-auto mb-8"
+        className="max-w-7xl mx-auto mb-6 sm:mb-8"
       >
-        <Link href="/admin" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-green)] hover:text-green-700 transition-colors bg-white/70 backdrop-blur-sm py-3 px-6 rounded-lg shadow-sm hover:shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-2 text-sm sm:text-base font-medium text-[var(--color-green)] hover:text-green-700 transition-colors bg-white/70 backdrop-blur-sm py-2 sm:py-3 px-4 sm:px-6 rounded-lg shadow-sm hover:shadow-md"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6 sm:h-7 sm:w-7"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
           </svg>
           Back to Admin Dashboard
         </Link>
@@ -102,113 +336,470 @@ export default function ManageUsers() {
       <motion.h1
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-5xl md:text-6xl font-bold text-center mb-12 text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-green)] to-gray-700"
+        className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-center mb-8 sm:mb-12 text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-green)] to-gray-700"
       >
-        User Information 
+        Lead Management Dashboard
       </motion.h1>
 
-      {/* Enquiry Users Section */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="max-w-7xl mx-auto mb-16"
-      >
-        <h2 className="text-4xl font-semibold mb-6 text-[var(--color-green)]">All of your enquires</h2>
-        <AnimatePresence>
-          {enquiryUsers.length === 0 ? (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-gray-600 italic text-xl"
+      <div className="max-w-7xl mx-auto mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab("enquiry")}
+              className={`px-4 py-2 rounded-lg text-base sm:text-lg font-medium transition-all duration-300 ${
+                activeTab === "enquiry"
+                  ? "bg-[var(--color-green)] text-white shadow-lg"
+                  : "bg-white/70 text-gray-600 hover:bg-white/90"
+              }`}
             >
-              No active enquiry nodes detected
-            </motion.p>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {enquiryUsers.map((user) => (
-                <motion.div
-                  key={user._id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  whileHover={{ 
-                    scale: 1.03,
-                    boxShadow: "0 0 20px rgba(0, 255, 0, 0.2)"
-                  }}
-                  className="bg-white/80 backdrop-blur-md p-6 rounded-xl border border-gray-200 hover:border-[var(--color-green)] transition-colors"
-                >
-                  <h3 className="text-2xl font-semibold text-gray-800 mb-3">
-                    {user.firstname} {user.lastname}
-                  </h3>
-                  <div className="space-y-3 text-gray-700 text-base">
-                    <p><span className="text-[var(--color-green)] font-medium">Email:</span> {user.email}</p>
-                    <p><span className="text-[var(--color-green)] font-medium">Contact:</span> {user.country} {user.contact}</p>
-                    <p><span className="text-[var(--color-green)] font-medium">Transmission:</span> {user.message}</p>
-                    <p className="text-gray-500 text-lg">
-                      <span className="text-[var(--color-green)] font-medium">Timestamp:</span> {new Date(user.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </AnimatePresence>
-      </motion.section>
+              Enquiry Leads
+            </button>
+            <button
+              onClick={() => setActiveTab("interested")}
+              className={`px-4 py-2 rounded-lg text-base sm:text-lg font-medium transition-all duration-300 ${
+                activeTab === "interested"
+                  ? "bg-[var(--color-green)] text-white shadow-lg"
+                  : "bg-white/70 text-gray-600 hover:bg-white/90"
+              }`}
+            >
+              Product Interest
+            </button>
+          </div>
 
-      {/* Interested Users Section */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="max-w-7xl mx-auto"
-      >
-        <h2 className="text-4xl font-semibold mb-6 text-[var(--color-green)]">Interest User Details</h2>
-        <AnimatePresence>
-          {interestedUsers.length === 0 ? (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-gray-600 italic text-xl"
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className="flex items-center gap-2 px-4 py-2 bg-white/70 hover:bg-white/90 text-gray-700 rounded-lg shadow-sm hover:shadow-md transition-all text-base sm:text-lg"
             >
-              No interest nodes detected
-            </motion.p>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {interestedUsers.map((user) => (
-                <motion.div
-                  key={user._id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  whileHover={{ 
-                    scale: 1.03,
-                    boxShadow: "0 0 20px rgba(0, 255, 0, 0.2)"
-                  }}
-                  className="bg-white/80 backdrop-blur-md p-6 rounded-xl border border-gray-200 hover:border-[var(--color-green)] transition-colors"
-                >
-                  <h3 className="text-2xl font-semibold text-gray-800 mb-3">{user.productTitle}</h3>
-                  <div className="space-y-3 text-gray-700 text-base">
-                    <p><span className="text-[var(--color-green)] font-medium">Product ID:</span> {user.productId}</p>
-                    <div>
-                      <span className="text-[var(--color-green)] font-medium">Data Points:</span>
-                      <ul className="mt-2 space-y-2">
-                        {user.queries.map((query, idx) => (
-                          <li key={idx} className="text-gray-700">
-                            <span className="text-[var(--color-green)] font-medium">{query.title}:</span>{" "}
-                            {query.value || "Not specified"}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <p className="text-gray-500 text-lg">
-                      <span className="text-[var(--color-green)] font-medium">Timestamp:</span> {new Date(user.createdAt).toLocaleString()}
-                    </p>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              {isFilterOpen ? "Hide Filters" : "Show Filters"}
+            </button>
+
+            <button
+              onClick={exportLeadsToExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-[#0dac9a] hover:bg-green-600 cursor-pointer text-white rounded-lg shadow-sm hover:shadow-md transition-all text-base sm:text-lg"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export to Excel
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {isFilterOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-6 bg-white/80 backdrop-blur-md p-4 rounded-xl shadow-md overflow-hidden"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">Search</label>
+                  <input
+                    type="text"
+                    placeholder="Search by any field..."
+                    value={filterOptions.searchQuery}
+                    onChange={(e) => setFilterOptions({...filterOptions, searchQuery: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={filterOptions.startDate}
+                    onChange={(e) => setFilterOptions({...filterOptions, startDate: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={filterOptions.endDate}
+                    onChange={(e) => setFilterOptions({...filterOptions, endDate: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">Year</label>
+                  <select
+                    value={filterOptions.year}
+                    onChange={(e) => setFilterOptions({...filterOptions, year: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  >
+                    <option value="">All Years</option>
+                    {getYears().map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">Month</label>
+                  <select
+                    value={filterOptions.month}
+                    onChange={(e) => setFilterOptions({...filterOptions, month: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  >
+                    <option value="">All Months</option>
+                    {getMonths().map(month => (
+                      <option key={month.value} value={month.value}>{month.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">Source</label>
+                  <select
+                    value={filterOptions.source}
+                    onChange={(e) => setFilterOptions({...filterOptions, source: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  >
+                    <option value="">All Sources</option>
+                    {getSources().map(source => (
+                      <option key={source} value={source}>{source}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={filterOptions.status}
+                    onChange={(e) => setFilterOptions({...filterOptions, status: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                  >
+                    <option value="">All Statuses</option>
+                    {getStatuses().map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {activeTab === "enquiry" && (
+                  <div>
+                    <label className="block text-base font-medium text-gray-700 mb-1">Country</label>
+                    <select
+                      value={filterOptions.country}
+                      onChange={(e) => setFilterOptions({...filterOptions, country: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                    >
+                      <option value="">All Countries</option>
+                      {getCountries().map(country => (
+                        <option key={country} value={country}>{country}</option>
+                      ))}
+                    </select>
                   </div>
-                </motion.div>
-              ))}
-            </div>
+                )}
+
+                {activeTab === "interested" && (
+                  <div>
+                    <label className="block text-base font-medium text-gray-700 mb-1">Product</label>
+                    <select
+                      value={filterOptions.product}
+                      onChange={(e) => setFilterOptions({...filterOptions, product: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--color-green)] focus:border-[var(--color-green)] text-base"
+                    >
+                      <option value="">All Products</option>
+                      {getProducts().map(product => (
+                        <option key={product} value={product}>{product}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={resetFilters}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors text-base"
+                >
+                  Reset Filters
+                </button>
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
-      </motion.section>
+
+        <div className="bg-white/80 backdrop-blur-md p-4 rounded-xl shadow-md mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-800">Lead Generator</h3>
+              <p className="text-base text-gray-600">
+                {selectedLeads.length} leads selected out of {activeTab === "enquiry" ? filteredEnquiryUsers.length : filteredInterestedUsers.length}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Select leads to export or manage. Use filters to narrow down your target audience.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {selectedLeads.length > 0 && (
+                <button
+                  onClick={() => setSelectedLeads([])}
+                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-base"
+                >
+                  Clear Selection
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setSelectedLeads(activeTab === "enquiry"
+                    ? filteredEnquiryUsers.map(user => user._id)
+                    : filteredInterestedUsers.map(user => user._id));
+                }}
+                className="px-3 py-1 bg-[var(--color-green)] hover:bg-green-700 text-white rounded-lg text-base"
+              >
+                Select All
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {activeTab === "enquiry" && (
+          <motion.section
+            key="enquiry-section"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.3 }}
+            className="max-w-7xl mx-auto mb-12 sm:mb-16"
+          >
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-[var(--color-green)]">
+                Enquiry Leads
+              </h2>
+              <span className="text-gray-600 font-medium text-lg">
+                {filteredEnquiryUsers.length} {filteredEnquiryUsers.length === 1 ? 'lead' : 'leads'}
+              </span>
+            </div>
+
+            <AnimatePresence>
+              {filteredEnquiryUsers.length === 0 ? (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-gray-600 italic text-lg sm:text-xl md:text-2xl"
+                >
+                  No enquiry leads found matching your criteria
+                </motion.p>
+              ) : (
+                <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredEnquiryUsers.map((user) => (
+                    <motion.div
+                      key={user._id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{
+                        scale: 1.03,
+                        boxShadow: "0 0 20px rgba(0, 255, 0, 0.2)",
+                      }}
+                      className={`bg-white/80 backdrop-blur-md p-4 sm:p-6 rounded-xl border ${
+                        selectedLeads.includes(user._id)
+                          ? "border-[var(--color-green)] ring-2 ring-[var(--color-green)]"
+                          : "border-gray-200 hover:border-[var(--color-green)]"
+                      } transition-colors relative`}
+                    >
+                      <div className="absolute top-4 right-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.includes(user._id)}
+                          onChange={() => toggleLeadSelection(user._id)}
+                          className="h-6 w-6 text-[var(--color-green)] rounded border-gray-300 focus:ring-[var(--color-green)]"
+                        />
+                      </div>
+
+                      <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold text-gray-800 mb-2 sm:mb-3">
+                        {user.firstname} {user.lastname}
+                      </h3>
+                      <div className="space-y-2 sm:space-y-3 text-gray-700 text-base sm:text-lg">
+                        <div className="flex items-center">
+                          <span className="text-[var(--color-green)] font-medium mr-2">Email:</span>
+                          <span className="flex-1 truncate">{user.email}</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCopy(user.email, `email-${user._id}`)}
+                              className="text-gray-500 hover:text-[var(--color-green)] p-1 relative"
+                              title="Copy email"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              {copiedId === `email-${user._id}` && (
+                                <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-sm py-1 px-2 rounded whitespace-nowrap">
+                                  Copied!
+                                </span>
+                              )}
+                            </button>
+                            <a
+                              href={`mailto:${user.email}`}
+                              className="text-gray-500 hover:text-[var(--color-green)] p-1"
+                              title="Send email"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                            </a>
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-[var(--color-green)] font-medium mr-2">Contact:</span>
+                          <span className="flex-1">{user.country} {user.contact}</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCopy(user.contact, `contact-${user._id}`)}
+                              className="text-gray-500 hover:text-[var(--color-green)] p-1 relative"
+                              title="Copy contact number"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              {copiedId === `contact-${user._id}` && (
+                                <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-sm py-1 px-2 rounded whitespace-nowrap">
+                                  Copied!
+                                </span>
+                              )}
+                            </button>
+                            <a
+                              href={`https://wa.me/${user.contact.replace(/\s+/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-500 hover:text-green-600 p-1"
+                              title="Contact on WhatsApp"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174672-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                                <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm7 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12z" />
+                              </svg>
+                            </a>
+                          </div>
+                        </div>
+                        <p>
+                          <span className="text-[var(--color-green)] font-medium">Message:</span> {user.message}
+                        </p>
+                        {user.source && (
+                          <p>
+                            <span className="text-[var(--color-green)] font-medium">Source:</span> {user.source}
+                          </p>
+                        )}
+                        {user.status && (
+                          <p>
+                            <span className="text-[var(--color-green)] font-medium">Status:</span> {user.status}
+                          </p>
+                        )}
+                        <p>
+                          <span className="text-[var(--color-green)] font-medium">Date:</span>{" "}
+                          {new Date(user.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </AnimatePresence>
+          </motion.section>
+        )}
+
+        {activeTab === "interested" && (
+          <motion.section
+            key="interested-section"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.3 }}
+            className="max-w-7xl mx-auto mb-12 sm:mb-16"
+          >
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-[var(--color-green)]">
+                Product Interest Leads
+              </h2>
+              <span className="text-gray-600 font-medium text-lg">
+                {filteredInterestedUsers.length} {filteredInterestedUsers.length === 1 ? 'lead' : 'leads'}
+              </span>
+            </div>
+
+            <AnimatePresence>
+              {filteredInterestedUsers.length === 0 ? (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-gray-600 italic text-lg sm:text-xl md:text-2xl"
+                >
+                  No product interest leads found matching your criteria
+                </motion.p>
+              ) : (
+                <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredInterestedUsers.map((user) => (
+                    <motion.div
+                      key={user._id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{
+                        scale: 1.03,
+                        boxShadow: "0 0 20px rgba(0, 255, 0, 0.2)",
+                      }}
+                      className={`bg-white/80 backdrop-blur-md p-4 sm:p-6 rounded-xl border ${
+                        selectedLeads.includes(user._id)
+                          ? "border-[var(--color-green)] ring-2 ring-[var(--color-green)]"
+                          : "border-gray-200 hover:border-[var(--color-green)]"
+                      } transition-colors relative`}
+                    >
+                      <div className="absolute top-4 right-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.includes(user._id)}
+                          onChange={() => toggleLeadSelection(user._id)}
+                          className="h-6 w-6 text-[var(--color-green)] rounded border-gray-300 focus:ring-[var(--color-green)]"
+                        />
+                      </div>
+
+                      <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold text-gray-800 mb-2 sm:mb-3">
+                        {user.productTitle}
+                      </h3>
+                      <div className="space-y-2 sm:space-y-3 text-gray-700 text-base sm:text-lg">
+                        <p>
+                          <span className="text-[var(--color-green)] font-medium">Product ID:</span>{" "}
+                          {user.productId}
+                        </p>
+                        {user.queries.map((query, index) => (
+                          <p key={index}>
+                            <span className="text-[var(--color-green)] font-medium">{query.title}:</span>{" "}
+                            {query.value}
+                          </p>
+                        ))}
+                        {user.source && (
+                          <p>
+                            <span className="text-[var(--color-green)] font-medium">Source:</span> {user.source}
+                          </p>
+                        )}
+                        {user.status && (
+                          <p>
+                            <span className="text-[var(--color-green)] font-medium">Status:</span> {user.status}
+                          </p>
+                        )}
+                        <p>
+                          <span className="text-[var(--color-green)] font-medium">Date:</span>{" "}
+                          {new Date(user.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </AnimatePresence>
+          </motion.section>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

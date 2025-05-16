@@ -1,4 +1,3 @@
-// app/components/ProductPreview.tsx
 'use client';
 
 import { Product } from '@/types/product';
@@ -21,10 +20,6 @@ export default function ProductPreview({ product }: ProductPreviewProps) {
           <h3 className="text-lg font-medium text-gray-800">{product.displayTitle || 'No title'}</h3>
           <p className="text-gray-600">{product.name || 'No name'}</p>
         </div>
-        
-        <p className="text-gray-600">
-          Price: ${product.price || 0}{product.priceLabel ? ` (${product.priceLabel})` : ""}
-        </p>
 
         {product.description && (
           <div>

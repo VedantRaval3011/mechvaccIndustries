@@ -22,7 +22,7 @@ const imagesInfo = [
 ];
 const Brands = () => {
   return (
-    <div className="bg-large-green-gradient z-20 border-t-2 border-white">
+    <div className="bg-large-green-gradient z-20  border-white">
       <div className="flex md:pt-10 pt-5 uppercase items-center ml-2 md:ml-7  font-medium text-white">
         <span className="text-sm md:text-3xl lg:text-4xl font-bold">
           {" "}

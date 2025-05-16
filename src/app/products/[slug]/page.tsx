@@ -1,29 +1,47 @@
-// app/products/[slug]/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { Product } from "@/types/product";
-import { 
-  ChevronLeft, 
-  Star, 
-  Download, 
-  Play, 
-  Share2, 
-  Copy, 
-  Mail, 
-  Facebook,  
-  Send 
+import {
+  ChevronLeft,
+  Star,
+  Download,
+  Play,
+  Share2,
+  Copy,
+  Mail,
+  Facebook,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Head from "next/head";
+import { useSearchParams } from "next/navigation";
 import { use } from "react";
 import toast, { Toaster } from "react-hot-toast";
+import { useProductStore } from "@/store/productStore";
+
+// Function to convert product name to URL slug
+const createSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-')     // Replace spaces with hyphens
+    .replace(/-+/g, '-')      // Remove duplicate hyphens
+    .trim();
+};
+
+// Function to convert slug back to name for querying
+const slugToName = (slug: string): string => {
+  return slug
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 
 interface ExtendedProduct extends Product {
   _id: string;
-  slug: string;
 }
 
 export default function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -41,17 +59,37 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     { title: 'Name', type: 'string' },
     { title: 'Phone Number', type: 'string' },
   ]);
-  
+
   const shareMenuRef = useRef<HTMLDivElement>(null);
   const resolvedParams = use(params);
   const slug = resolvedParams.slug;
+  const searchParams = useSearchParams();
+  const productId = searchParams.get('id');
+  const getProductBySlug = useProductStore((state) => state.getProductBySlug);
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await fetch(`/api/products/${slug}`);
-        if (!res.ok) throw new Error("Failed to fetch product");
-        const data = await res.json();
+        let id = productId;
+
+        if (!id) {
+          const storedProduct = getProductBySlug(slug);
+          id = storedProduct?._id ?? null;
+        }
+
+        if (!id) {
+          const name = slugToName(slug);
+          const productsRes = await fetch(`/api/products`);
+          if (!productsRes.ok) throw new Error("Failed to fetch products list");
+          const products: ExtendedProduct[] = await productsRes.json();
+          const targetProduct = products.find((p) => p.name.toLowerCase() === name.toLowerCase());
+          if (!targetProduct) throw new Error("Product not found");
+          id = targetProduct._id;
+        }
+
+        const productRes = await fetch(`/api/products/${id}`);
+        if (!productRes.ok) throw new Error("Failed to fetch product");
+        const data = await productRes.json();
         setProduct(data as ExtendedProduct);
         setActiveImage(data.displayImage || "");
         fetchInterestingProducts();
@@ -61,9 +99,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         setIsLoading(false);
       }
     };
-    
+
     fetchProduct();
-  }, [slug]);
+  }, [slug, productId, getProductBySlug]);
 
   const fetchInterestingProducts = async () => {
     setIsInterestingLoading(true);
@@ -101,7 +139,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     if (!product) return;
     const subject = encodeURIComponent(`Check out this product: ${product.displayTitle}`);
     const body = encodeURIComponent(
-      `I found this amazing product:\n\n${product.displayTitle}\n\n${window.location.href}\n\nPrice: ₹${product.price}\n\n${product.name}`
+      `I found this amazing product:\n\n${product.displayTitle}\n\n${window.location.href}\n\n${product.name}`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
     setIsShareMenuOpen(false);
@@ -133,10 +171,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
 
   const submitInterest = async () => {
     if (!product) return;
-    
+
     try {
       setIsSubmitting(true);
-      // Filter out duplicates by creating a Map and converting back to array
       const allQueries = [...defaultQueries, ...(product.queries || [])];
       const uniqueQueries = Array.from(
         new Map(allQueries.map(query => [query.title, query])).values()
@@ -187,16 +224,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-gray-bg)]">
-        <motion.div 
+        <motion.div
           className="relative w-16 h-16"
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
         >
-          <motion.div 
+          <motion.div
             className="absolute inset-0 border-4 border-t-[var(--color-green)] border-r-transparent border-b-transparent border-l-transparent rounded-full"
           />
         </motion.div>
-        <motion.p 
+        <motion.p
           className="mt-6 text-xl font-medium"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -211,7 +248,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   if (!product) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-gray-bg)]">
-        <motion.div 
+        <motion.div
           className="text-center bg-white p-8 rounded-2xl shadow-lg"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -233,7 +270,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
   }
 
   const pageTitle = `${product.displayTitle} - ${product.group || "Product"}`;
-  const metaDescription = `${product.description} - High-quality ${product.group || "product"} priced at $${product.price || "N/A"}.`;
+  const metaDescription = `${product.description} - High-quality ${product.group || "product"}.`;
   const canonicalUrl = `https://yourdomain.com/products/${slug}`;
   const keywords = product.seoKeywords || `${product.displayTitle}, ${product.group}, buy online`;
 
@@ -252,8 +289,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         <meta property="og:image" content={product.displayImage || "/default-image.jpg"} />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:type" content="product" />
-        <meta property="og:price:amount" content={product.price?.toString() || ""} />
-        <meta property="og:price:currency" content="INR" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={metaDescription} />
@@ -290,7 +325,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
           >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="p-6">
-                {/* Main product image - updated for better quality */}
                 <motion.div
                   className="relative rounded-xl overflow-hidden bg-gray-100"
                   whileHover={{ scale: 1.02 }}
@@ -303,25 +337,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
                     priority
-                    style={{ 
+                    style={{
                       objectFit: 'contain',
                       backgroundColor: '#f9f9f9'
                     }}
                     quality={100}
                   />
-                  {product.price && (
-                    <motion.div 
-                      className="absolute top-4 right-4 bg-[var(--color-green)] text-white py-2 px-4 rounded-full font-bold shadow-md"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      ${product.price}{product.priceLabel ? ` (${product.priceLabel})` : ""}
-                    </motion.div>
-                  )}
                 </motion.div>
 
-                {/* Thumbnail images - updated for consistency */}
                 {product.additionalImages && product.additionalImages.length > 0 && (
                   <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
                     {[product.displayImage, ...product.additionalImages].map((img, index) => (
@@ -408,7 +431,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                       </AnimatePresence>
                     </div>
                   </div>
-                  
+
                   <h1 className="text-3xl font-bold text-[var(--color-black)] mb-3">
                     {product.displayTitle}
                   </h1>
@@ -447,8 +470,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                   {product.seoKeywords && (
                     <div className="flex flex-wrap gap-2 mb-6">
                       {product.seoKeywords.split(',').map((keyword, idx) => (
-                        <span 
-                          key={idx} 
+                        <span
+                          key={idx}
                           className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md"
                         >
                           {keyword.trim()}
@@ -579,7 +602,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
               <h2 className="text-2xl font-bold text-[var(--color-black)] mb-6">
                 Our Interesting Products
               </h2>
-              
+
               {isInterestingLoading ? (
                 <p className="text-gray-600">Loading interesting products...</p>
               ) : interestingProducts.length > 0 ? (
@@ -591,15 +614,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                       transition={{ duration: 0.3 }}
                       className="bg-white rounded-xl shadow-md overflow-hidden"
                     >
-                      <Link href={`/products/${interestingProduct._id}`}>
-                        {/* Updated related product images */}
+                      <Link href={`/products/${createSlug(interestingProduct.name)}?id=${interestingProduct._id}`}>
                         <div className="relative bg-gray-100" style={{ height: '200px' }}>
                           <Image
                             src={interestingProduct.displayImage || "/no-image-placeholder.png"}
                             alt={`Image of ${interestingProduct.displayTitle}`}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                            style={{ 
+                            style={{
                               objectFit: 'contain',
                               backgroundColor: '#f9f9f9'
                             }}
@@ -613,12 +635,6 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
                           <h3 className="text-lg font-semibold text-[var(--color-black)] mb-2 line-clamp-1">
                             {interestingProduct.displayTitle}
                           </h3>
-                          {interestingProduct.price && (
-                            <p className="text-sm font-bold text-[var(--color-green)]">
-                            ${interestingProduct.price}
-                            {interestingProduct.priceLabel ? ` (${interestingProduct.priceLabel})` : ""}
-                          </p>
-                          )}
                         </div>
                       </Link>
                     </motion.div>

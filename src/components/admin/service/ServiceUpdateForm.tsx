@@ -1,4 +1,3 @@
-// app/components/admin/services/ServiceUpdateForm.tsx
 "use client";
 
 import { useForm, useFieldArray } from "react-hook-form";
@@ -17,13 +16,10 @@ const isFileList = (value: unknown): value is FileList => {
   return typeof window !== 'undefined' && value instanceof FileList;
 };
 
-
 const updateSchema = z.object({
   name: z.string().min(1, "Service name is required"),
   displayTitle: z.string().min(1, "Display title is required"),
   group: z.string().min(1, "Group is required"),
-  price: z.number().min(0, "Price must be positive"),
-  priceLabel: z.string().optional(),
   description: z.string().optional(),
   displayImage: z.any().optional().refine(
     (val) => !val || isFileList(val),
@@ -42,7 +38,6 @@ const updateSchema = z.object({
       ])
     )
     .optional(),
-  // Rest of your schema remains the same
   video: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   pdf: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   seoKeywords: z.string().optional(),
@@ -99,8 +94,6 @@ export default function ServiceUpdateForm({
       name: service.name,
       displayTitle: service.displayTitle,
       group: service.group,
-      price: service.price,
-      priceLabel: service.priceLabel,
       description: service.description,
       displayImage: undefined,
       additionalImages: service.additionalImages
@@ -146,8 +139,6 @@ export default function ServiceUpdateForm({
       name: service.name,
       displayTitle: service.displayTitle,
       group: service.group,
-      price: service.price,
-      priceLabel: service.priceLabel,
       description: service.description,
       displayImage: undefined,
       additionalImages: service.additionalImages
@@ -194,8 +185,6 @@ export default function ServiceUpdateForm({
       formData.append("name", data.name);
       formData.append("displayTitle", data.displayTitle);
       formData.append("group", data.group);
-      formData.append("price", data.price.toString());
-      formData.append("priceLabel", data.priceLabel || "");
       formData.append("description", data.description || "");
       if (data.displayImage && data.displayImage.length > 0) {
         formData.append("displayImage", data.displayImage[0]);
@@ -255,8 +244,6 @@ export default function ServiceUpdateForm({
         name: updatedService.name,
         displayTitle: updatedService.displayTitle,
         group: updatedService.group,
-        price: updatedService.price,
-        priceLabel: updatedService.priceLabel,
         description: updatedService.description,
         displayImage: undefined,
         additionalImages: updatedService.additionalImages
@@ -302,11 +289,24 @@ export default function ServiceUpdateForm({
     }
   };
 
+  const handleNewService = () => {
+     window.location.reload();
+  }
+
   return (
-    <div className="space-y-8 p-2 bg-white rounded-2xl ">
-      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">
-        Update Service
-      </h2>
+    <div className="space-y-8 p-2 bg-white rounded-2xl">
+      <div className="flex justify-between items-center border-b pb-4">
+        <h2 className="text-3xl font-bold text-gray-800">
+          Update Service
+        </h2>
+        <button
+          type="button"
+          onClick={handleNewService}
+          className="px-4 py-2 text-sm font-medium text-white bg-[var(--color-green)] rounded-full hover:bg-[var(--color-green-gradient-end)] transition-all"
+        >
+          New Service
+        </button>
+      </div>
 
       {(isLoading || isDeleting) && (
         <div className="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
@@ -385,52 +385,19 @@ export default function ServiceUpdateForm({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Price
+              Description
             </label>
             <input
-              {...register("price", { valueAsNumber: true })}
-              type="number"
-              step="1"
+              {...register("description")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
               disabled={isLoading || isDeleting}
             />
-            {errors.price && (
+            {errors.description && (
               <p className="text-red-500 text-sm mt-1">
-                {errors.price.message}
+                {errors.description.message}
               </p>
             )}
           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Price Label
-          </label>
-          <input
-            {...register("priceLabel")}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
-            disabled={isLoading || isDeleting}
-          />
-          {errors.priceLabel && (
-            <p className="text-red-500 text-sm mt-1">
-              {errors.priceLabel.message}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
-          </label>
-          <input
-            {...register("description")}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
-            disabled={isLoading || isDeleting}
-          />
-          {errors.description && (
-            <p className="text-red-500 text-sm mt-1">
-              {errors.description.message}
-            </p>
-          )}
         </div>
 
         <div>
@@ -446,12 +413,12 @@ export default function ServiceUpdateForm({
           />
           {previewDisplayImage && (
             <Image
-            src={previewDisplayImage}
-            alt="Display Preview"
-            width={200}
-            height={160}  
-            className="mt-4 rounded-lg shadow-md"  
-          />
+              src={previewDisplayImage}
+              alt="Display Preview"
+              width={200}
+              height={160}
+              className="mt-4 rounded-lg shadow-md"
+            />
           )}
         </div>
 
@@ -478,12 +445,12 @@ export default function ServiceUpdateForm({
               </button>
               {previewAdditionalImages[index] && (
                 <Image
-                src={previewAdditionalImages[index]}
-                alt="Additional Preview"
-                width={96}    
-                height={96}   
-                className="rounded-lg shadow-md"  // Removed h-24 and w-auto
-              />
+                  src={previewAdditionalImages[index]}
+                  alt="Additional Preview"
+                  width={96}
+                  height={96}
+                  className="rounded-lg shadow-md"
+                />
               )}
             </div>
           ))}

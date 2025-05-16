@@ -71,7 +71,7 @@ export default function Step3({ productId, onComplete }: Step3Props) {
                 disabled={isLoading}
               >
                 <option value="number">Number</option>
-                <option value="string">String</option>
+                <option value="string">Message</option>
               </select>
               {errors.queries?.[index]?.type && typeof errors.queries[index]?.type === 'object' && 'message' in errors.queries[index]?.type && (
                 <p className="text-red-500 text-sm mt-1">{(errors.queries[index]?.type as FieldError).message}</p>

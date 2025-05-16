@@ -1,4 +1,3 @@
-// app/components/admin/services/ServiceList.tsx
 "use client";
 
 import { Service } from "@/types/service";
@@ -33,18 +32,55 @@ export default function ServiceList({ onServiceSelect }: ServiceListProps) {
 
   useEffect(() => {
     fetchServices();
-  }, []); // Runs once on mount
+  }, []);
 
   const handleRefresh = () => {
     fetchServices();
   };
 
-  // Debounced search handler (simple version without external library)
+  // Function to delete a service
+  const handleServiceDelete = async (serviceId: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation(); // Prevent triggering the parent onClick
+    }
+    
+    if (!confirm("Are you sure you want to delete this service?")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/services/${serviceId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete service');
+      }
+      
+      // Remove the service from state
+      setServices((prevServices) =>
+        prevServices.filter((s) => s._id !== serviceId)
+      );
+      
+    } catch (error) {
+      console.error("Error deleting service:", error);
+      alert("Failed to delete service. Please try again.");
+    }
+  };
+
+  const handleServiceUpdate = (updatedService: Service) => {
+    setServices((prevServices) =>
+      prevServices.map((s) =>
+        s._id === updatedService._id ? updatedService : s
+      )
+    );
+  };
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
 
-  // Filter services based on search query
   const filteredServices = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return services;
@@ -89,7 +125,6 @@ export default function ServiceList({ onServiceSelect }: ServiceListProps) {
         </button>
       </div>
 
-      {/* Search Input */}
       <div className="mb-6">
         <div className="relative">
           <input
@@ -138,10 +173,34 @@ export default function ServiceList({ onServiceSelect }: ServiceListProps) {
             <li
               key={service._id}
               className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-all"
-              onClick={() => onServiceSelect(service)}
+              onClick={() =>
+                onServiceSelect({
+                  ...service,
+                  onUpdate: handleServiceUpdate,
+                  onDelete: () => handleServiceDelete(service._id),
+                } as Service & {
+                  onUpdate?: (updatedService: Service) => void;
+                  onDelete?: () => void;
+                })
+              }
             >
-              <h4 className="text-lg font-semibold text-gray-700">{service.displayTitle}</h4>
-              <p className="text-gray-600">{service.group} | {service.price && <span className="text-gray-800">Price: ${service.price}</span>}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-700">{service.displayTitle}</h4>
+                  <p className="text-gray-600">{service.group} | {service.price && <span className="text-gray-800">Price: ${service.price}</span>}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button className="text-[var(--color-green)] hover:underline">
+                    Edit
+                  </button>
+                  <button 
+                    onClick={(e) => handleServiceDelete(service._id, e)}
+                    className="text-red-500 hover:underline"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             </li>
           ))}
         </ul>

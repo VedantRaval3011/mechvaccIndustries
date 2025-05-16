@@ -2,27 +2,55 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Service } from "@/types/service";
-import { 
-  ChevronLeft, 
-  Star, 
-  Download, 
-  Play, 
-  Share2, 
-  Copy, 
-  Mail, 
-  Facebook,  
-  Send 
+import {
+  ChevronLeft,
+  Star,
+  Download,
+  Play,
+  Share2,
+  Copy,
+  Mail,
+  Facebook,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Head from "next/head";
-import { use } from "react";
+import { useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 
+// Define custom error types
+interface FetchError extends Error {
+  message: string;
+  status?: number;
+}
+
+interface SubmitError extends Error {
+  message: string;
+  details?: string;
+}
+
+// Function to convert service name to URL slug
+const createSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-')     // Replace spaces with hyphens
+    .replace(/-+/g, '-')      // Remove duplicate hyphens
+    .trim();
+};
+
+// Function to convert slug back to name for querying
+const slugToName = (slug: string): string => {
+  return slug
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 interface ExtendedService extends Service {
-  id: string;
-  slug: string;
+  _id: string;
 }
 
 export default function ServiceDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -36,44 +64,85 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
   const [queryValues, setQueryValues] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showThankYou, setShowThankYou] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [defaultQueries] = useState([
     { title: 'Name', type: 'string' },
     { title: 'Phone Number', type: 'string' },
   ]);
 
   const shareMenuRef = useRef<HTMLDivElement>(null);
-  const resolvedParams = use(params);
-  const slug = resolvedParams.slug;
+  const [resolvedParams, setResolvedParams] = useState<{ slug: string } | null>(null);
+  const searchParams = useSearchParams();
+  const serviceId = searchParams.get('id');
+
+  useEffect(() => {
+    params.then(data => {
+      setResolvedParams(data);
+    });
+  }, [params]);
 
   useEffect(() => {
     const fetchService = async () => {
+      if (!resolvedParams) return; // Wait for params to resolve
+
       try {
-        const res = await fetch(`/api/services/${slug}`);
-        if (!res.ok) throw new Error("Failed to fetch service");
-        const data = await res.json();
+        let id = serviceId;
+        const slug = resolvedParams.slug;
+
+        // If no ID from query param, resolve slug to ID via API
+        if (!id) {
+          const name = slugToName(slug);
+          const servicesRes = await fetch(`/api/services`);
+          if (!servicesRes.ok) {
+            throw new Error(`Failed to fetch services list: ${servicesRes.status} ${servicesRes.statusText}`);
+          }
+          const services: ExtendedService[] = await servicesRes.json();
+          const targetService = services.find((s) => s.name.toLowerCase() === name.toLowerCase());
+          if (!targetService) {
+            throw new Error(`No service found for slug: ${slug} (name: ${name})`);
+          }
+          id = targetService._id;
+        }
+
+        // Validate ID
+        if (!id) {
+          throw new Error("Service ID is undefined");
+        }
+
+        // Fetch service by ID
+        const serviceRes = await fetch(`/api/services/${id}`);
+        if (!serviceRes.ok) {
+          throw new Error(`Failed to fetch service: ${serviceRes.status} ${serviceRes.statusText}`);
+        }
+        const data = await serviceRes.json();
         setService(data as ExtendedService);
         setActiveImage(data.displayImage || "");
         fetchInterestingServices();
-      } catch (error) {
-        console.error("Error fetching service:", error);
+      } catch (error: unknown) {
+        const fetchError = error as FetchError;
+        console.error("Error fetching service:", fetchError.message);
+        setErrorMessage(fetchError.message || "An error occurred while fetching the service.");
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     fetchService();
-  }, [slug]);
+  }, [resolvedParams, serviceId]);
 
   const fetchInterestingServices = async () => {
     setIsInterestingLoading(true);
     try {
       const res = await fetch(`/api/services?featured=true&limit=4`);
-      if (!res.ok) throw new Error("Failed to fetch interesting services");
+      if (!res.ok) {
+        throw new Error(`Failed to fetch interesting services: ${res.status} ${res.statusText}`);
+      }
       const data = await res.json();
       const servicesArray = Array.isArray(data) ? data : [];
       setInterestingServices(servicesArray.slice(0, 4) as ExtendedService[]);
-    } catch (error) {
-      console.error("Error fetching interesting services:", error);
+    } catch (error: unknown) {
+      const fetchError = error as FetchError;
+      console.error("Error fetching interesting services:", fetchError.message);
     } finally {
       setIsInterestingLoading(false);
     }
@@ -100,7 +169,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
     if (!service) return;
     const subject = encodeURIComponent(`Check out this service: ${service.displayTitle}`);
     const body = encodeURIComponent(
-      `I found this amazing service:\n\n${service.displayTitle}\n\n${window.location.href}\n\nPrice: $${service.price || "Contact for pricing"} ${service.priceLabel || ""}\n\nDescription: ${service.description || "No description available"}\n\n`
+      `I found this amazing service:\n\n${service.displayTitle}\n\n${window.location.href}\n\nDescription: ${service.description || "No description available"}\n\n`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
     setIsShareMenuOpen(false);
@@ -109,7 +178,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
   const shareToSocialMedia = (platform: "facebook" | "whatsapp") => {
     if (!service) return;
     const url = encodeURIComponent(window.location.href);
-    const title = encodeURIComponent(`Check out this service: ${service.displayTitle} - $${service.price || "Contact for pricing"} ${service.priceLabel || ""}`);
+    const title = encodeURIComponent(`Check out this service: ${service.displayTitle}`);
     let shareUrl = "";
     switch (platform) {
       case "facebook":
@@ -132,7 +201,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
 
   const submitInterest = async () => {
     if (!service) return;
-    
+
     try {
       setIsSubmitting(true);
       const allQueries = [...defaultQueries, ...(service.queries || [])];
@@ -159,7 +228,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: service.id, // Using productId generically, could be serviceId
+          productId: service._id,
           productTitle: service.displayTitle,
           userQueries: queriesWithValues,
         }),
@@ -174,8 +243,9 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
       setShowThankYou(true);
       setQueryValues({});
       setTimeout(() => setShowThankYou(false), 5000);
-    } catch (error) {
-      console.error('Error submitting interest:', error);
+    } catch (error: unknown) {
+      const submitError = error as SubmitError;
+      console.error('Error submitting interest:', submitError.message);
       toast.error('Failed to submit interest. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -185,16 +255,16 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-gray-bg)] text-[var(--color-black)]">
-        <motion.div 
+        <motion.div
           className="relative w-16 h-16"
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
         >
-          <motion.div 
+          <motion.div
             className="absolute inset-0 border-4 border-t-[var(--color-green)] border-r-transparent border-b-transparent border-l-transparent rounded-full"
           />
         </motion.div>
-        <motion.p 
+        <motion.p
           className="mt-6 text-xl font-medium"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -206,16 +276,19 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
     );
   }
 
-  if (!service) {
+  if (!service || errorMessage) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-gray-bg)]">
-        <motion.div 
+        <motion.div
           className="text-center bg-white p-8 rounded-2xl shadow-lg"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
         >
           <h2 className="text-2xl font-semibold text-gray-700 mb-4">Service Not Found</h2>
+          <p className="text-gray-600 mb-6">
+            {errorMessage || "The service you are looking for does not exist. Please try again."}
+          </p>
           <Link href="/services">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -231,8 +304,8 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
   }
 
   const pageTitle = `${service.displayTitle} - ${service.group || "Service"}`;
-  const metaDescription = `${service.description || "Premium"} ${service.group || "service"} priced at $${service.price || "Contact for pricing"} ${service.priceLabel || ""}. Learn more!`;
-  const canonicalUrl = `https://yourdomain.com/services/${slug}`;
+  const metaDescription = `${service.description || "Premium"} ${service.group || "service"}. Learn more!`;
+  const canonicalUrl = `https://yourdomain.com/services/${resolvedParams?.slug || ''}`;
   const keywords = service.seoKeywords || `${service.displayTitle}, ${service.group}, service online`;
 
   return (
@@ -250,8 +323,6 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
         <meta property="og:image" content={service.displayImage || "/default-image.jpg"} />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:type" content="service" />
-        <meta property="og:price:amount" content={service.price?.toString() || ""} />
-        <meta property="og:price:currency" content="INR" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={metaDescription} />
@@ -300,16 +371,6 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                     objectFit="cover"
                     className="transition-all duration-300"
                   />
-                  {service.price && (
-                    <motion.div 
-                      className="absolute top-4 right-4 bg-[var(--color-green)] text-white py-2 px-4 rounded-full font-bold shadow-md"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      ${service.price} {service.priceLabel || ""}
-                    </motion.div>
-                  )}
                 </motion.div>
 
                 {service.additionalImages && service.additionalImages.length > 0 && (
@@ -338,8 +399,8 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
 
               <div className="p-6 flex flex-col justify-between">
                 <div>
-                  <div className="flex justify-between items-start">
-                    <p className="text-sm font-medium text-[var(--color-green)] mb-2">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="text-sm font-medium text-[var(--color-green)]">
                       {service.group || "Uncategorized"}
                     </p>
                     <div className="relative" ref={shareMenuRef}>
@@ -359,7 +420,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 10 }}
                             transition={{ duration: 0.2 }}
-                            className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg z-50 overflow-hidden"
+                            className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg z-50"
                           >
                             <div className="p-2">
                               <button
@@ -396,7 +457,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                       </AnimatePresence>
                     </div>
                   </div>
-                  
+
                   <h1 className="text-3xl font-bold text-[var(--color-black)] mb-3">
                     {service.displayTitle}
                   </h1>
@@ -405,15 +466,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                     <span className="text-gray-600">Premium Service</span>
                   </div>
 
-                  {/* Added Price, Price Label, and Description */}
                   <div className="mb-4">
-                    {service.price ? (
-                      <div className="text-lg font-semibold text-[var(--color-green)]">
-                        ${service.price} {service.priceLabel && <span className="font-normal text-gray-700">{service.priceLabel}</span>}
-                      </div>
-                    ) : (
-                      <div className="text-lg font-semibold text-gray-700">Contact for Pricing</div>
-                    )}
                     {service.description && (
                       <p className="mt-2 text-gray-700">{service.description}</p>
                     )}
@@ -440,8 +493,8 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                   {service.seoKeywords && (
                     <div className="flex flex-wrap gap-2 mb-6">
                       {service.seoKeywords.split(',').map((keyword, idx) => (
-                        <span 
-                          key={idx} 
+                        <span
+                          key={idx}
                           className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md"
                         >
                           {keyword.trim()}
@@ -495,7 +548,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="p-4 bg-gray-50 rounded-xl relative"
+                        className="p-4 bg-gray-50 rounded-xl"
                       >
                         {Array.from(
                           new Map([...defaultQueries, ...(service.queries || [])].map(query => [query.title, query])).values()
@@ -561,7 +614,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
               </div>
             </div>
           </motion.div>
-          
+
           {interestingServices.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -572,7 +625,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
               <h2 className="text-2xl font-bold text-[var(--color-black)] mb-6">
                 Our Interesting Services
               </h2>
-              
+
               {isInterestingLoading ? (
                 <p className="text-gray-600">Loading interesting services...</p>
               ) : interestingServices.length > 0 ? (
@@ -584,7 +637,7 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                       transition={{ duration: 0.3 }}
                       className="bg-white rounded-xl shadow-md overflow-hidden"
                     >
-                      <Link href={`/services/${interestingService.slug}`}>
+                      <Link href={`/services/${createSlug(interestingService.name)}?id=${interestingService._id}`}>
                         <div className="relative h-48 bg-gray-100">
                           <Image
                             src={interestingService.displayImage || "/no-image-placeholder.png"}
@@ -600,13 +653,6 @@ export default function ServiceDetailPage({ params }: { params: Promise<{ slug: 
                           <h3 className="text-lg font-semibold text-[var(--color-black)] mb-2 line-clamp-1">
                             {interestingService.displayTitle}
                           </h3>
-                          {interestingService.price ? (
-                            <p className="text-sm font-bold text-[var(--color-green)]">
-                              ${interestingService.price} {interestingService.priceLabel || ""}
-                            </p>
-                          ) : (
-                            <p className="text-sm font-bold text-gray-700">Contact for Pricing</p>
-                          )}
                         </div>
                       </Link>
                     </motion.div>
