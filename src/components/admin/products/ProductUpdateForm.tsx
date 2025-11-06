@@ -1,15 +1,26 @@
 "use client";
 
-import { useForm, useFieldArray, FieldError } from 'react-hook-form';
+import { useForm, useFieldArray, FieldError } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Product } from "@/types/product";
 import { useState, useEffect } from "react";
+import Image from "next/image";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 
 interface ProductWithCallbacks extends Product {
   onUpdate?: (updatedProduct: Product) => void;
   onDelete?: () => void;
 }
+
+// Custom type guard for FileList
+const isFileList = (value: unknown): value is FileList =>
+  value !== null &&
+  typeof value === "object" &&
+  "length" in value &&
+  "item" in value;
 
 // Custom validation function to check name uniqueness
 const checkNameUniqueness = async (name: string, currentProductId: string) => {
@@ -18,7 +29,9 @@ const checkNameUniqueness = async (name: string, currentProductId: string) => {
     if (!response.ok) throw new Error("Failed to fetch products");
     const products: Product[] = await response.json();
     return !products.some(
-      (product) => product.name.toLowerCase() === name.toLowerCase() && product._id !== currentProductId
+      (product) =>
+        product.name.toLowerCase() === name.toLowerCase() &&
+        product._id !== currentProductId
     );
   } catch (error) {
     console.error("Error checking name uniqueness:", error);
@@ -26,20 +39,51 @@ const checkNameUniqueness = async (name: string, currentProductId: string) => {
   }
 };
 
-// Zod schema with uniqueness validation
+// Zod schema for custom sections
+const customSectionSchema = z.object({
+  title: z.string().min(1, "Section title is required"),
+  content: z
+    .string()
+    .min(1, "Content is required")
+    .refine(
+      (value) => value.includes("#") || value.includes("##"),
+      "Content must include at least one heading (# or ##) for SEO"
+    ),
+});
+
+// Zod schema with corrected file handling and custom sections
 const updateSchema = z.object({
-  _id: z.string().optional(), // Added to have access in the form
+  _id: z.string().optional(),
   name: z.string().min(1, "Product name is required"),
   displayTitle: z.string().min(1, "Display title is required"),
   group: z.string().min(1, "Group is required"),
   description: z.string().optional(),
-  displayImage: z.any().optional(),
+  applications: z.string().optional(),
+  displayImage: z
+    .unknown()
+    .optional()
+    .refine(
+      (value) => !value || isFileList(value),
+      "Display image must be a file"
+    )
+    .transform((value: unknown) =>
+      isFileList(value) && value.length > 0 ? value[0] : undefined
+    ),
   additionalImages: z
     .array(
-      z.union([
-        z.object({ file: z.any().optional() }),
-        z.object({ url: z.string() }),
-      ])
+      z.object({
+        file: z
+          .unknown()
+          .optional()
+          .refine(
+            (value) => !value || isFileList(value),
+            "Additional image must be a file"
+          )
+          .transform((value: unknown) =>
+            isFileList(value) && value.length > 0 ? value[0] : undefined
+          ),
+        url: z.string().optional(),
+      })
     )
     .optional(),
   video: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -61,6 +105,7 @@ const updateSchema = z.object({
       })
     )
     .optional(),
+  customSections: z.array(customSectionSchema).optional(),
 });
 
 type UpdateFormData = z.infer<typeof updateSchema>;
@@ -106,15 +151,20 @@ export default function ProductUpdateForm({
       displayTitle: product.displayTitle,
       group: product.group,
       description: product.description,
+      applications: product.applications || "",
       displayImage: undefined,
       additionalImages: product.additionalImages
-        ? product.additionalImages.map((url: string) => ({ url }))
+        ? product.additionalImages.map((url: string) => ({
+            url,
+            file: undefined,
+          }))
         : [],
       video: product.video || "",
       pdf: product.pdf || "",
       seoKeywords: product.seoKeywords || "",
       specifications: product.specifications || [],
       queries: product.queries || [],
+      customSections: product.customSections || [],
     },
   });
 
@@ -145,6 +195,15 @@ export default function ProductUpdateForm({
     name: "queries",
   });
 
+  const {
+    fields: sectionFields,
+    append: appendSection,
+    remove: removeSection,
+  } = useFieldArray({
+    control,
+    name: "customSections",
+  });
+
   useEffect(() => {
     reset({
       _id: product._id,
@@ -152,19 +211,23 @@ export default function ProductUpdateForm({
       displayTitle: product.displayTitle,
       group: product.group,
       description: product.description,
+      applications: product.applications || "",
       displayImage: undefined,
       additionalImages: product.additionalImages
-        ? product.additionalImages.map((url: string) => ({ url }))
+        ? product.additionalImages.map((url: string) => ({
+            url,
+            file: undefined,
+          }))
         : [],
       video: product.video || "",
       pdf: product.pdf || "",
       seoKeywords: product.seoKeywords || "",
       specifications: product.specifications || [],
       queries: product.queries || [],
+      customSections: product.customSections || [],
     });
     setPreviewDisplayImage(product.displayImage || "");
     setPreviewAdditionalImages(product.additionalImages || []);
-    // Reset name error when product changes
     setNameError(null);
   }, [product, reset]);
 
@@ -173,7 +236,7 @@ export default function ProductUpdateForm({
   const productName = watch("name");
   const productId = watch("_id");
 
-  // Check name uniqueness when the name changes
+  // Check name uniqueness
   useEffect(() => {
     const checkName = async () => {
       if (!productName || productName === product.name) {
@@ -183,12 +246,11 @@ export default function ProductUpdateForm({
 
       setIsCheckingName(true);
       try {
-        const isUnique = await checkNameUniqueness(productName, productId || '');
-        if (!isUnique) {
-          setNameError("Product name must be unique");
-        } else {
-          setNameError(null);
-        }
+        const isUnique = await checkNameUniqueness(
+          productName,
+          productId || ""
+        );
+        setNameError(isUnique ? null : "Product name must be unique");
       } catch (error) {
         console.error("Error checking name uniqueness:", error);
       } finally {
@@ -196,42 +258,40 @@ export default function ProductUpdateForm({
       }
     };
 
-    // Use a debounce to avoid too many requests
     const timeoutId = setTimeout(checkName, 500);
     return () => clearTimeout(timeoutId);
   }, [productName, productId, product.name]);
 
+  // Handle display image preview
   useEffect(() => {
-    if (displayImageFile && displayImageFile.length > 0) {
-      setPreviewDisplayImage(URL.createObjectURL(displayImageFile[0]));
+    if (displayImageFile instanceof File) {
+      setPreviewDisplayImage(URL.createObjectURL(displayImageFile));
+      return () => URL.revokeObjectURL(previewDisplayImage);
     }
   }, [displayImageFile]);
 
+  // Handle additional images preview
   useEffect(() => {
     if (additionalImagesFiles) {
       const newPreviews = additionalImagesFiles.map((item) => {
-        if ("file" in item && item.file && item.file.length > 0) {
-          return URL.createObjectURL(item.file[0]);
+        if (item.file instanceof File) {
+          return URL.createObjectURL(item.file);
         }
-        if ("url" in item && item.url) {
-          return item.url;
-        }
-        return "";
+        return item.url || "";
       });
       setPreviewAdditionalImages(newPreviews);
+      return () => newPreviews.forEach((url) => URL.revokeObjectURL(url));
     }
   }, [additionalImagesFiles]);
 
   const onSubmit = async (data: UpdateFormData) => {
-    // Check name uniqueness before submitting
     if (data.name !== product.name) {
       setIsCheckingName(true);
-      const isUnique = await checkNameUniqueness(data.name, product._id || '');
+      const isUnique = await checkNameUniqueness(data.name, product._id || "");
       setIsCheckingName(false);
-      
       if (!isUnique) {
         setNameError("Product name must be unique");
-        return; // Prevent form submission
+        return;
       }
     }
 
@@ -242,16 +302,17 @@ export default function ProductUpdateForm({
       formData.append("displayTitle", data.displayTitle);
       formData.append("group", data.group);
       formData.append("description", data.description || "");
-      if (data.displayImage && data.displayImage.length > 0) {
-        formData.append("displayImage", data.displayImage[0]);
+      formData.append("applications", data.applications || "");
+      if (data.displayImage instanceof File) {
+        formData.append("displayImage", data.displayImage);
       } else {
         formData.append("displayImage", product.displayImage || "");
       }
       if (data.additionalImages && data.additionalImages.length > 0) {
         data.additionalImages.forEach((item) => {
-          if ("file" in item && item.file && item.file.length > 0) {
-            formData.append("additionalImages", item.file[0]);
-          } else if ("url" in item && item.url) {
+          if (item.file instanceof File) {
+            formData.append("additionalImages", item.file);
+          } else if (item.url) {
             formData.append("additionalImages", item.url);
           }
         });
@@ -259,6 +320,10 @@ export default function ProductUpdateForm({
       formData.append("video", data.video ?? "");
       formData.append("pdf", data.pdf ?? "");
       formData.append("seoKeywords", data.seoKeywords ?? "");
+      formData.append(
+        "customSections",
+        JSON.stringify(data.customSections || [])
+      );
 
       const mainResponse = await fetch(`/api/products/${product._id}`, {
         method: "PUT",
@@ -302,15 +367,20 @@ export default function ProductUpdateForm({
         displayTitle: updatedProduct.displayTitle,
         group: updatedProduct.group,
         description: updatedProduct.description,
+        applications: updatedProduct.applications || "",
         displayImage: undefined,
         additionalImages: updatedProduct.additionalImages
-          ? updatedProduct.additionalImages.map((url) => ({ url }))
+          ? updatedProduct.additionalImages.map((url) => ({
+              url,
+              file: undefined,
+            }))
           : [],
         video: updatedProduct.video || "",
         pdf: updatedProduct.pdf || "",
         seoKeywords: updatedProduct.seoKeywords || "",
         specifications: updatedProduct.specifications || [],
         queries: updatedProduct.queries || [],
+        customSections: updatedProduct.customSections || [],
       });
 
       setPreviewDisplayImage(updatedProduct.displayImage || "");
@@ -349,9 +419,7 @@ export default function ProductUpdateForm({
   return (
     <div className="space-y-8 p-2 bg-white rounded-2xl">
       <div className="flex justify-between items-center border-b pb-4">
-        <h2 className="text-3xl font-bold text-gray-800">
-          Update Product
-        </h2>
+        <h2 className="text-3xl font-bold text-gray-800">Update Product</h2>
         <button
           type="button"
           onClick={handleNewProduct}
@@ -383,11 +451,11 @@ export default function ProductUpdateForm({
             />
           </svg>
           <span className="text-gray-700">
-            {isLoading 
-              ? "Updating product..." 
-              : isDeleting 
-                ? "Deleting product..." 
-                : "Checking name..."}
+            {isLoading
+              ? "Updating product..."
+              : isDeleting
+              ? "Deleting product..."
+              : "Checking name..."}
           </span>
         </div>
       )}
@@ -406,14 +474,20 @@ export default function ProductUpdateForm({
               disabled={isLoading || isDeleting}
             />
             {errors.name && (
-              <p className="text-red-500 text-sm mt-1">
-                {typeof errors.name?.message === "string" ? errors.name.message : null}
-              </p>
+              <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
             )}
             {nameError && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mt-2 flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 {nameError}
               </div>
@@ -456,9 +530,10 @@ export default function ProductUpdateForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
-            <input
+            <textarea
               {...register("description")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+              rows={4}
               disabled={isLoading || isDeleting}
             />
             {errors.description && (
@@ -467,6 +542,200 @@ export default function ProductUpdateForm({
               </p>
             )}
           </div>
+        </div>
+
+        {/* Custom Sections */}
+        <div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">
+            Custom Sections
+          </h3>
+          {sectionFields.map((section, index) => (
+            <div
+              key={section.id}
+              className="mb-6 p-4 border border-gray-300 rounded-lg shadow-sm"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="text-lg font-medium text-gray-800">
+                  Section {index + 1}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => removeSection(index)}
+                  className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                  disabled={isLoading || isDeleting}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Section Title
+                  </label>
+                  <input
+                    {...register(`customSections.${index}.title`)}
+                    placeholder="e.g., Key Features, Applications, How It Works"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
+                    disabled={isLoading || isDeleting}
+                  />
+                  {errors.customSections?.[index]?.title && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.customSections[index].title?.message}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Content (Markdown)
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <textarea
+                      {...register(`customSections.${index}.content`)}
+                      placeholder={`# Section Heading\n- Feature 1\n- Feature 2\n\nUse headings (#, ##) for SEO-friendly content.`}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all font-mono text-sm"
+                      rows={6}
+                      disabled={isLoading || isDeleting}
+                    />
+                    <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        Preview
+                      </h4>
+                      <div className="prose prose-sm max-w-none text-gray-700">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeSanitize]}
+                          components={{
+                            p: ({ node, ...props }) => (
+                              <p className="text-gray-700 mb-2" {...props} />
+                            ),
+                            h1: ({ node, ...props }) => (
+                              <h1
+                                className="text-2xl font-bold text-gray-800 mt-6 mb-3"
+                                {...props}
+                              />
+                            ),
+                            h2: ({ node, ...props }) => (
+                              <h2
+                                className="text-xl font-semibold text-gray-800 mt-5 mb-2"
+                                {...props}
+                              />
+                            ),
+                            h3: ({ node, ...props }) => (
+                              <h3
+                                className="text-lg font-semibold text-gray-800 mt-4 mb-2"
+                                {...props}
+                              />
+                            ),
+                            ul: ({ node, ...props }) => (
+                              <ul
+                                className="list-disc list-inside text-gray-700 mb-2"
+                                {...props}
+                              />
+                            ),
+                            ol: ({ node, ...props }) => (
+                              <ol
+                                className="list-decimal list-inside text-gray-700 mb-2"
+                                {...props}
+                              />
+                            ),
+                            li: ({ node, ...props }) => (
+                              <li className="text-gray-700 mb-1" {...props} />
+                            ),
+                            a: ({ node, ...props }) => (
+                              <a
+                                className="text-[var(--color-green)] hover:underline"
+                                {...props}
+                              />
+                            ),
+                            // Table styling components
+                            table: ({ node, ...props }) => (
+                              <table
+                                className="min-w-full border-collapse border border-gray-300 mt-4 mb-4 text-sm"
+                                {...props}
+                              />
+                            ),
+                            thead: ({ node, ...props }) => (
+                              <thead className="bg-gray-50" {...props} />
+                            ),
+                            th: ({ node, ...props }) => (
+                              <th
+                                className="border border-gray-300 px-3 py-2 bg-gray-100 font-semibold text-left text-gray-800"
+                                {...props}
+                              />
+                            ),
+                            td: ({ node, ...props }) => (
+                              <td
+                                className="border border-gray-300 px-3 py-2 text-gray-700"
+                                {...props}
+                              />
+                            ),
+                            tr: ({ node, ...props }) => (
+                              <tr className="hover:bg-gray-50" {...props} />
+                            ),
+                            // Code styling
+                            code: ({ node, ...props }) => {
+                              const isInline =
+                                !props.className?.includes("language-");
+                              return isInline ? (
+                                <code
+                                  className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-gray-800"
+                                  {...props}
+                                />
+                              ) : (
+                                <code
+                                  className="block bg-gray-100 p-3 rounded text-sm font-mono text-gray-800 overflow-x-auto"
+                                  {...props}
+                                />
+                              );
+                            },
+                            pre: ({ node, ...props }) => (
+                              <pre
+                                className="bg-gray-100 p-3 rounded text-sm font-mono text-gray-800 overflow-x-auto mb-4"
+                                {...props}
+                              />
+                            ),
+                            // Blockquote styling
+                            blockquote: ({ node, ...props }) => (
+                              <blockquote
+                                className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-4"
+                                {...props}
+                              />
+                            ),
+                            // Strong and emphasis
+                            strong: ({ node, ...props }) => (
+                              <strong
+                                className="font-semibold text-gray-800"
+                                {...props}
+                              />
+                            ),
+                            em: ({ node, ...props }) => (
+                              <em className="italic text-gray-700" {...props} />
+                            ),
+                          }}
+                        >
+                          {watch(`customSections.${index}.content`) ||
+                            "Enter Markdown to see preview"}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                  {errors.customSections?.[index]?.content && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.customSections[index].content?.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => appendSection({ title: "", content: "" })}
+            className="mt-2 inline-flex items-center px-4 py-2 border border-[var(--color-green)] text-sm rounded-full text-[var(--color-green)] hover:bg-[var(--color-green)] hover:text-white"
+            disabled={isLoading || isDeleting}
+          >
+            + Add Section
+          </button>
         </div>
 
         <div>
@@ -481,10 +750,12 @@ export default function ProductUpdateForm({
             disabled={isLoading || isDeleting}
           />
           {previewDisplayImage && (
-            <img
+            <Image
               src={previewDisplayImage}
               alt="Display Preview"
               className="mt-4 h-40 w-auto rounded-lg shadow-md"
+              width={160}
+              height={160}
             />
           )}
         </div>
@@ -496,7 +767,7 @@ export default function ProductUpdateForm({
           {additionalImageFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <input
-                {...register(`additionalImages.${index}.file` as const)}
+                {...register(`additionalImages.${index}.file`)}
                 type="file"
                 accept="image/*"
                 className="flex-1 p-3 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[var(--color-green)] file:text-white hover:file:bg-[var(--color-green-gradient-end)]"
@@ -511,17 +782,19 @@ export default function ProductUpdateForm({
                 ✕
               </button>
               {previewAdditionalImages[index] && (
-                <img
+                <Image
                   src={previewAdditionalImages[index]}
                   alt="Additional Preview"
                   className="h-24 w-auto rounded-lg shadow-md"
+                  width={96}
+                  height={96}
                 />
               )}
             </div>
           ))}
           <button
             type="button"
-            onClick={() => appendImage({ file: undefined })}
+            onClick={() => appendImage({ file: undefined, url: undefined })}
             className="mt-2 inline-flex items-center px-4 py-2 border border-[var(--color-green)] text-sm font-medium rounded-full text-[var(--color-green)] hover:bg-[var(--color-green)] hover:text-white"
             disabled={isLoading || isDeleting}
           >
@@ -585,6 +858,7 @@ export default function ProductUpdateForm({
             {...register("seoKeywords")}
             placeholder="Enter SEO keywords (comma-separated)"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
+            disabled={isLoading || isDeleting}
           />
           {errors.seoKeywords && (
             <p className="text-red-500 text-sm mt-1">
@@ -604,7 +878,7 @@ export default function ProductUpdateForm({
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <input
-                  {...register(`specifications.${index}.title` as const)}
+                  {...register(`specifications.${index}.title`)}
                   placeholder="Title"
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
                   disabled={isLoading || isDeleting}
@@ -617,7 +891,7 @@ export default function ProductUpdateForm({
               </div>
               <div className="flex-1">
                 <input
-                  {...register(`specifications.${index}.value` as const)}
+                  {...register(`specifications.${index}.value`)}
                   placeholder="Value"
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
                   disabled={isLoading || isDeleting}
@@ -656,7 +930,7 @@ export default function ProductUpdateForm({
             <div key={field.id} className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <input
-                  {...register(`queries.${index}.title` as const)}
+                  {...register(`queries.${index}.title`)}
                   placeholder="Query Title"
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
                   disabled={isLoading || isDeleting}
@@ -669,19 +943,20 @@ export default function ProductUpdateForm({
               </div>
               <div className="flex-1">
                 <select
-                  {...register(`queries.${index}.type` as const)}
+                  {...register(`queries.${index}.type`)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent"
                   disabled={isLoading || isDeleting}
                 >
                   <option value="number">Number</option>
                   <option value="string">Message</option>
+                  <option value="dropdown">Dropdown</option>
+                  <option value="number + checkbox">Number + Checkbox</option>
                 </select>
-                {errors.queries?.[index]?.type &&
-                  typeof errors.queries[index]?.type === "object" && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {(errors.queries[index]?.type as FieldError).message}
-                    </p>
-                  )}
+                {errors.queries?.[index]?.type && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {(errors.queries[index]?.type as FieldError)?.message}
+                  </p>
+                )}
               </div>
               <button
                 type="button"

@@ -13,7 +13,81 @@
   --color-large-green-gradient-end: #50C4A9;
 }
 
+/* Enhanced font rendering */
+*,
+*::before,
+*::after {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1;
+  font-kerning: normal;
+}
 
+/* Ensure proper font rendering on all elements */
+body {
+  font-family: var(--font-ubuntu), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* High DPI display optimization */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Prevent text scaling issues */
+@media screen and (max-width: 768px) {
+  body {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+}
+
+/* Fix for transform-based blur issues */
+.no-transform-blur {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Use Inter font for text smaller than base size */
+.text-xs,
+.text-sm {
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Explicitly keep Ubuntu for base and larger text */
+.text-base,
+.text-lg,
+.text-xl,
+.text-2xl,
+.text-3xl,
+.text-4xl,
+.text-5xl,
+.text-6xl,
+.text-7xl,
+.text-8xl,
+.text-9xl {
+  font-family: var(--font-ubuntu), system-ui, sans-serif;
+}
+
+/* Add this to your global CSS file */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
 
 .bg-green-gradient {
   background: linear-gradient(90deg, var(--color-green-gradient-start) 0%, var(--color-green-gradient-end) 100%);
@@ -42,11 +116,11 @@
   }
 }
 
-
+/* Your existing step-tracker styles... */
 .step-tracker {
   position: relative;
   overflow: hidden;
-  padding: 20px 0; /* Extra padding for wave effect */
+  padding: 20px 0;
 }
 
 .steps-container {
@@ -56,8 +130,6 @@
   position: relative;
   z-index: 1;
 }
-
-
 
 .step {
   display: flex;
@@ -72,8 +144,8 @@
 .step-number {
   width: 40px;
   height: 40px;
-  background-color: #e5e7eb; /* gray-200 */
-  color: #6b7280; /* gray-500 */
+  background-color: #e5e7eb;
+  color: #6b7280;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -87,13 +159,13 @@
 .step.active .step-number {
   background-color: var(--color-green);
   color: white;
-  transform: scale(1.1); /* Slight bounce effect for active step */
+  transform: scale(1.1);
 }
 
 .step-label {
   margin-top: 8px;
   font-size: 0.9rem;
-  color: #6b7280; /* gray-500 */
+  color: #6b7280;
   transition: color 0.3s ease;
 }
 
@@ -101,20 +173,18 @@
   color: var(--color-green);
 }
 
-/* Base waterbed (static background) */
 .steps-container::before {
   content: '';
   position: absolute;
   top: 10px;
   left: 0;
   width: 100%;
-  height: 20px; /* Taller for a deeper water effect */
-  background: linear-gradient(to bottom, #e5e7eb, #d1d5db); /* gray-200 to gray-300 */
+  height: 20px;
+  background: linear-gradient(to bottom, #e5e7eb, #d1d5db);
   border-radius: 10px;
   z-index: 0;
 }
 
-/* Water flow layer 1: Main flow */
 .steps-container::after {
   content: '';
   position: absolute;
@@ -124,7 +194,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(34, 197, 94, 0.3) 20%, /* Light green */
+    rgba(34, 197, 94, 0.3) 20%,
     var(--color-green) 50%,
     rgba(34, 197, 94, 0.3) 80%,
     transparent 100%
@@ -136,7 +206,6 @@
   transition: width 0.5s ease;
 }
 
-/* Water flow layer 2: Wave shimmer */
 .steps-container .water-shimmer {
   content: '';
   position: absolute;
@@ -146,7 +215,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    #0b946d7c, /* White shimmer */
+    #0b946d7c,
     transparent
   );
   background-size: 150% 100%;
@@ -155,7 +224,6 @@
   transition: width 0.5s ease;
 }
 
-/* Dynamic width based on active step */
 .step-tracker:has(.step:nth-child(1).active)::after,
 .step-tracker:has(.step:nth-child(1).active) .water-shimmer {
   width: 33.33%;
@@ -171,7 +239,6 @@
   width: 100%;
 }
 
-/* Water flow animation */
 @keyframes waterFlowMain {
   0% {
     background-position: 0% 0%;
@@ -184,7 +251,6 @@
   }
 }
 
-/* Shimmer animation for wave effect */
 @keyframes waterShimmer {
   0% {
     background-position: -50% 0%;
@@ -194,12 +260,10 @@
   }
 }
 
-/* Optional: Subtle wave distortion using filter (modern browsers) */
 .steps-container::after {
-  filter: url(#waveFilter); /* Requires SVG filter below */
+  filter: url(#waveFilter);
 }
 
-/* SVG filter for wave-like distortion */
 svg.wave-filter {
   position: absolute;
   width: 0;
@@ -209,18 +273,20 @@ svg.wave-filter {
 @keyframes glow {
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
-  }
-  .animate-glow {
-    animation: glow 2s infinite;
-  }
+}
 
-  @keyframes text-glitch {
-    0%, 100% { transform: translate(0); }
-    20% { transform: translate(-2px, 2px); }
-    40% { transform: translate(2px, -2px); }
-    60% { transform: translate(-2px, -2px); }
-    80% { transform: translate(2px, 2px); }
-  }
-  .animate-text-glitch {
-    animation: text-glitch 3s infinite;
-  }
+.animate-glow {
+  animation: glow 2s infinite;
+}
+
+@keyframes text-glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(2px, -2px); }
+  60% { transform: translate(-2px, -2px); }
+  80% { transform: translate(2px, 2px); }
+}
+
+.animate-text-glitch {
+  animation: text-glitch 3s infinite;
+}

@@ -13,6 +13,9 @@ export async function POST(request: NextRequest) {
     const displayTitle = data.get('displayTitle') as string;
     const displayImage = data.get('displayImage') as File;
     const additionalImages = data.getAll('additionalImages') as File[];
+    const customSections = data.get("customSections")
+         ? JSON.parse(data.get("customSections") as string)
+         : [];
 
     if (!name || !displayTitle || !displayImage) {
       return NextResponse.json({ error: 'Name, displayTitle, and displayImage are required' }, { status: 400 });
@@ -49,6 +52,8 @@ export async function POST(request: NextRequest) {
       seoKeywords: data.get('seoKeywords') as string || undefined,
       priceLabel: data.get('priceLabel') as string,
       description: data.get('description') as string,
+      applications: data.get('applications') as string || undefined,
+      customSections,
     });
 
     await product.save();

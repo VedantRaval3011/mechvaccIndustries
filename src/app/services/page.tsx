@@ -5,8 +5,10 @@ import { Service } from "@/types/service";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, ChevronRight, List, X, Star } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Suspense } from "react";
+import { useServiceStore } from "@/store/serviceStore";
 
 // Function to convert service name to URL slug
 const createSlug = (name: string): string => {
@@ -28,6 +30,7 @@ function ServicesContent() {
   const [activeGroup, setActiveGroup] = useState<string>(
     searchParams.get("activeGroup") || "all"
   );
+  const setStoreServices = useServiceStore((state) => state.setServices);
 
   // Sync activeGroup with URL changes
   useEffect(() => {
@@ -44,6 +47,7 @@ function ServicesContent() {
         if (!res.ok) throw new Error("Failed to fetch services");
         const data: Service[] = await res.json();
         setServices(data);
+        setStoreServices(data); // Populate the Zustand store
       } catch (error) {
         console.error("Error fetching services:", error);
       } finally {
@@ -51,7 +55,7 @@ function ServicesContent() {
       }
     };
     fetchServices();
-  }, []);
+  }, [setStoreServices]);
 
   const groupedServices = useMemo(() => {
     return services.reduce((acc: { [key: string]: Service[] }, service) => {
@@ -69,7 +73,8 @@ function ServicesContent() {
       filtered[group] = groupServices.filter((service) => {
         const nameMatch = service.name.toLowerCase().includes(query);
         const groupMatch = service.group.toLowerCase().includes(query);
-        return nameMatch || groupMatch;
+        const applicationsMatch = service.applications?.toLowerCase().includes(query) || false;
+        return nameMatch || groupMatch || applicationsMatch;
       });
     }
     return filtered;
@@ -268,12 +273,14 @@ function ServicesContent() {
                       <motion.div
                         whileHover={{ scale: 1.05 }}
                         transition={{ duration: 0.5 }}
-                        className="relative h-64 overflow-hidden"
+                        className="relative w-full h-64 overflow-hidden"
                       >
-                        <img
+                        <Image
                           src={service.displayImage}
                           alt={service.displayTitle}
-                          className="w-full h-full object-cover transform transition-transform duration-700"
+                          width={400}
+                          height={256}
+                          className="w-full h-full object-contain transform transition-transform duration-700"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                       </motion.div>
@@ -284,10 +291,12 @@ function ServicesContent() {
                           transition={{ duration: 0.3 }}
                           className="p-6 bg-white rounded-full shadow-md"
                         >
-                          <img
+                          <Image
                             src="/no-image-placeholder.png"
                             alt="No Image"
-                            className="h-20 w-20 opacity-40"
+                            width={80}
+                            height={80}
+                            className="opacity-40"
                           />
                         </motion.div>
                       </div>
@@ -303,9 +312,6 @@ function ServicesContent() {
                         <h3 className="text-xl font-bold text-[var(--color-black)] leading-tight">
                           {service.displayTitle}
                         </h3>
-                        <p className="text-sm font-medium text-[var(--color-green)] mb-1 mt-4">
-                          {service.description || `${service.name}`}
-                        </p>
                       </div>
                       <motion.div
                         whileHover={{ rotate: 360 }}
@@ -314,10 +320,6 @@ function ServicesContent() {
                         <Star className="h-5 w-5 text-amber-400 fill-amber-400" />
                       </motion.div>
                     </div>
-
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                      {service.name}
-                    </p>
 
                     {service.seoKeywords && (
                       <div className="flex flex-wrap gap-2 mb-5">
@@ -332,6 +334,23 @@ function ServicesContent() {
                               {keyword.trim()}
                             </span>
                           ))}
+                      </div>
+                    )}
+
+                    {service.applications && (
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                        {service.applications}
+                      </p>
+                    )}
+
+                    {service.customSections && service.customSections.length > 0 && (
+                      <div className="mb-4">
+                        {service.customSections.slice(0, 1).map((section, idx) => (
+                          <div key={idx} className="text-sm text-gray-600">
+                            <span className="font-medium">{section.title}: </span>
+                            <span className="line-clamp-2">{section.content}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
 
@@ -366,7 +385,7 @@ function ServicesContent() {
 
                       <Link href={`/services/${createSlug(service.name)}`}>
                         <motion.button
-                          className="flex items-center px-5 py-2 bg-[var(--color-green)] text-white rounded-xl hover:bg-opacity-90 transition-all duration-300 font-medium cursor-pointer"
+                          className="flex items-center px-5 py-2 bg-[var(--color-green)] text-white rounded-xl hover:bg-opacity-90 transition-all duration-300 font-medium"
                           whileHover={{
                             scale: 1.05,
                             x: 5,

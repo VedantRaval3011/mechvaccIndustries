@@ -1,10 +1,51 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Product } from "@/types/product";
+
+// Lazy load framer-motion components
+const MotionDiv = lazy(() => 
+  import("framer-motion").then(module => ({ 
+    default: module.motion.div 
+  }))
+);
+const AnimatePresence = lazy(() => 
+  import("framer-motion").then(module => ({ 
+    default: module.AnimatePresence 
+  }))
+);
+
+// Cache for products data
+class ProductsCache {
+  private static instance: ProductsCache;
+  private cache: Map<string, { data: Product[]; timestamp: number }> = new Map();
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  static getInstance(): ProductsCache {
+    if (!ProductsCache.instance) {
+      ProductsCache.instance = new ProductsCache();
+    }
+    return ProductsCache.instance;
+  }
+
+  get(key: string): Product[] | null {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
+      return cached.data;
+    }
+    return null;
+  }
+
+  set(key: string, data: Product[]): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
 
 // Function to convert product name to URL slug
 const createSlug = (name: string): string => {
@@ -16,164 +57,74 @@ const createSlug = (name: string): string => {
     .trim();
 };
 
-const FeaturedProducts = () => {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const [windowWidth, setWindowWidth] = useState(0);
-  const [direction, setDirection] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const isAnimatingRef = useRef(false);
-
-  // Fetch products on mount
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await fetch("/api/products");
-        const data: Product[] = await response.json();
-        setFeaturedProducts(data);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-        setFeaturedProducts([]);
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-
-    // Set initial window width
-    setWindowWidth(window.innerWidth);
-
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // Reset animation state when page visibility changes
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        // Reset animation state when page becomes visible again
-        isAnimatingRef.current = false;
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
-
-  // Determine number of items to show based on screen size
-  const itemsToShow = () => {
-    if (windowWidth < 768) return 1;
-    if (windowWidth < 1024) return 2;
-    return 3;
+// Memoized Product Card component
+const ProductCard = React.memo(({
+  item,
+  layout,
+  direction,
+  windowWidth,
+  visibleCount,
+  isAnimatingRef,
+}: {
+  item: Product;
+  layout: {
+    position: number;
+    isEntering: boolean;
+    isExiting: boolean;
   };
+  direction: number;
+  windowWidth: number;
+  visibleCount: number;
+  isAnimatingRef: React.MutableRefObject<boolean>;
+}) => {
+  const isCentered = layout.position === Math.floor(visibleCount / 2);
 
-  const visibleCount = itemsToShow();
-
-  // Auto-slide every 5 seconds
-  useEffect(() => {
-    if (featuredProducts.length === 0 || loading) return;
-
-    const interval = setInterval(() => {
-      if (!document.hidden && !isAnimatingRef.current) {
-        handleNextSlide();
-      }
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [featuredProducts, activeIndex, loading]);
-
-  const handleNextSlide = () => {
-    if (featuredProducts.length <= visibleCount || isAnimatingRef.current)
-      return;
-
-    isAnimatingRef.current = true;
-    setDirection(1);
-    setActiveIndex((prev) => (prev + 1) % featuredProducts.length);
-
-    // Reset animation lock after animation completes
-    setTimeout(() => {
-      isAnimatingRef.current = false;
-    }, 500); // Slightly longer than animation duration
-  };
-
-  const handlePrevSlide = () => {
-    if (featuredProducts.length <= visibleCount || isAnimatingRef.current)
-      return;
-
-    isAnimatingRef.current = true;
-    setDirection(-1);
-    setActiveIndex(
-      (prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length
-    );
-
-    // Reset animation lock after animation completes
-    setTimeout(() => {
-      isAnimatingRef.current = false;
-    }, 500); // Slightly longer than animation duration
-  };
-
-  const ProductCard = ({
-    item,
-    layout,
-  }: {
-    item: Product;
-    layout: {
-      position: number;
-      isEntering: boolean;
-      isExiting: boolean;
-    };
-  }) => {
-    const isCentered = layout.position === Math.floor(visibleCount / 2);
-
-    const variants = {
-      enter: (direction: number) => ({
-        x:
-          direction > 0
-            ? windowWidth / visibleCount
-            : -windowWidth / visibleCount,
-        opacity: 0,
-        scale: 0.9,
-        zIndex: 0,
-      }),
-      visible: {
-        x: 0,
-        opacity: 1,
-        scale: isCentered ? 1.08 : 1,
-        zIndex: isCentered ? 2 : 1,
-        transition: {
-          duration: 0.4,
-        },
+  const variants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? windowWidth / visibleCount : -windowWidth / visibleCount,
+      opacity: 0,
+      scale: 0.9,
+      zIndex: 0,
+    }),
+    visible: {
+      x: 0,
+      opacity: 1,
+      scale: isCentered ? 1.08 : 1,
+      zIndex: isCentered ? 2 : 1,
+      transition: {
+        duration: 0.4,
       },
-      exit: (direction: number) => ({
-        x:
-          direction < 0
-            ? windowWidth / visibleCount
-            : -windowWidth / visibleCount,
-        opacity: 0,
-        scale: 0.9,
-        zIndex: 0,
-        transition: {
-          duration: 0.4,
-        },
-      }),
-    };
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? windowWidth / visibleCount : -windowWidth / visibleCount,
+      opacity: 0,
+      scale: 0.9,
+      zIndex: 0,
+      transition: {
+        duration: 0.4,
+      },
+    }),
+  };
 
-    const keywords = item.seoKeywords
+  const keywords = React.useMemo(() => {
+    return item.seoKeywords
       ? item.seoKeywords
           .split(",")
           .map((k) => k.trim())
           .slice(0, 3)
       : ["HDPE Tank", "Chemical Storage", "Spiral Tank"];
+  }, [item.seoKeywords]);
 
-    return (
-      <motion.div
+  return (
+    <Suspense fallback={
+      <div 
+        className="absolute top-0 w-full md:w-[46%] lg:w-[30%] px-4"
+        style={{ left: `${layout.position * (100 / visibleCount)}%` }}
+      >
+        <ProductCardSkeleton />
+      </div>
+    }>
+      <MotionDiv
         className="absolute top-0 w-full md:w-[46%] lg:w-[30%] px-4"
         style={{
           left: `${layout.position * (100 / visibleCount)}%`,
@@ -193,6 +144,7 @@ const FeaturedProducts = () => {
         <Link
           href={`/products/${createSlug(item.name)}`}
           className="w-full block"
+          prefetch={false} // Disable prefetching for better performance
         >
           <div className="group relative flex flex-col items-center rounded-3xl shadow-lg h-[28rem] w-full bg-white cursor-pointer border border-gray-100 overflow-hidden">
             <div className="absolute inset-0 bg-[var(--color-green)] transform origin-right transition-transform duration-300 ease-in-out scale-x-0 group-hover:scale-x-100 z-10"></div>
@@ -204,6 +156,10 @@ const FeaturedProducts = () => {
                 height={500}
                 alt={item.displayTitle}
                 className="h-56 w-full object-cover rounded-t-3xl"
+                loading="lazy"
+                placeholder="blur"
+                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
             </div>
             <div className="flex flex-col flex-1 w-full p-5 pb-6 bg-white z-20 relative group-hover:bg-transparent transition-colors duration-300">
@@ -239,13 +195,180 @@ const FeaturedProducts = () => {
             </div>
           </div>
         </Link>
-      </motion.div>
+      </MotionDiv>
+    </Suspense>
+  );
+});
+
+ProductCard.displayName = 'ProductCard';
+
+// Optimized skeleton component
+const ProductCardSkeleton = React.memo(() => (
+  <div className="flex flex-col items-center rounded-3xl shadow-lg h-[28rem] w-full bg-gray-200 animate-pulse">
+    <div className="w-full h-56 bg-gray-300 rounded-t-3xl"></div>
+    <div className="flex flex-col flex-1 w-full p-5 pb-6">
+      <div className="flex flex-col space-y-2 flex-1">
+        <div className="h-4 w-1/3 bg-gray-300 rounded"></div>
+        <div className="h-6 w-3/4 bg-gray-300 rounded"></div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-4 w-16 bg-gray-300 rounded-full"></div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-auto">
+        <div className="h-4 w-24 bg-gray-300 rounded"></div>
+      </div>
+    </div>
+  </div>
+));
+
+ProductCardSkeleton.displayName = 'ProductCardSkeleton';
+
+const FeaturedProducts = () => {
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [windowWidth, setWindowWidth] = useState(0);
+  const [direction, setDirection] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isMotionLoaded, setIsMotionLoaded] = useState(false);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const isAnimatingRef = useRef(false);
+  const cache = ProductsCache.getInstance();
+
+  // Optimized fetch with caching
+  const fetchProducts = React.useCallback(async () => {
+    try {
+      // Check cache first
+      const cachedProducts = cache.get('featured-products');
+      if (cachedProducts) {
+        setFeaturedProducts(cachedProducts);
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/products", {
+        // Add cache headers for browser caching
+        headers: {
+          'Cache-Control': 'public, max-age=300', // 5 minutes
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data: Product[] = await response.json();
+      
+      // Cache the results
+      cache.set('featured-products', data);
+      setFeaturedProducts(data);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      setFeaturedProducts([]);
+      setLoading(false);
+    }
+  }, [cache]);
+
+  // Fetch products on mount
+  useEffect(() => {
+    fetchProducts();
+
+    // Set initial window width
+    if (typeof window !== 'undefined') {
+      setWindowWidth(window.innerWidth);
+
+      const handleResize = () => {
+        setWindowWidth(window.innerWidth);
+      };
+
+      window.addEventListener("resize", handleResize, { passive: true });
+      return () => window.removeEventListener("resize", handleResize);
+    }
+  }, [fetchProducts]);
+
+  // Preload framer-motion after initial render
+  useEffect(() => {
+    const preloadMotion = async () => {
+      try {
+        await Promise.all([
+          import("framer-motion"),
+        ]);
+        setIsMotionLoaded(true);
+      } catch (error) {
+        console.error("Failed to preload framer-motion:", error);
+        setIsMotionLoaded(true); // Still set to true to prevent infinite loading
+      }
+    };
+
+    // Delay loading slightly to prioritize initial render
+    const timer = setTimeout(preloadMotion, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Reset animation state when page visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        isAnimatingRef.current = false;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange, { passive: true });
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  // Memoized items calculation
+  const visibleCount = React.useMemo(() => {
+    if (windowWidth < 768) return 1;
+    if (windowWidth < 1024) return 2;
+    return 3;
+  }, [windowWidth]);
+
+  // Auto-slide with optimization
+  useEffect(() => {
+    if (featuredProducts.length === 0 || loading || !isMotionLoaded) return;
+
+    const interval = setInterval(() => {
+      if (!document.hidden && !isAnimatingRef.current) {
+        handleNextSlide();
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [featuredProducts, activeIndex, loading, isMotionLoaded]);
+
+  const handleNextSlide = React.useCallback(() => {
+    if (featuredProducts.length <= visibleCount || isAnimatingRef.current) return;
+
+    isAnimatingRef.current = true;
+    setDirection(1);
+    setActiveIndex((prev) => (prev + 1) % featuredProducts.length);
+
+    setTimeout(() => {
+      isAnimatingRef.current = false;
+    }, 500);
+  }, [featuredProducts.length, visibleCount]);
+
+  const handlePrevSlide = React.useCallback(() => {
+    if (featuredProducts.length <= visibleCount || isAnimatingRef.current) return;
+
+    isAnimatingRef.current = true;
+    setDirection(-1);
+    setActiveIndex(
+      (prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length
     );
-  };
+
+    setTimeout(() => {
+      isAnimatingRef.current = false;
+    }, 500);
+  }, [featuredProducts.length, visibleCount]);
 
   // Skeleton loading component for products
-  const ProductSkeleton = () => {
-    const skeletonCount = itemsToShow();
+  const ProductSkeleton = React.useMemo(() => {
+    const skeletonCount = visibleCount;
     return (
       <div className="relative w-full min-h-[28rem]">
         {[...Array(skeletonCount)].map((_, idx) => (
@@ -256,33 +379,70 @@ const FeaturedProducts = () => {
               left: `${idx * (100 / skeletonCount)}%`,
             }}
           >
-            <div className="flex flex-col items-center rounded-3xl shadow-lg h-[28rem] w-full bg-gray-200 animate-pulse">
-              <div className="w-full h-56 bg-gray-300 rounded-t-3xl"></div>
-              <div className="flex flex-col flex-1 w-full p-5 pb-6">
-                <div className="flex flex-col space-y-2 flex-1">
-                  <div className="h-4 w-1/3 bg-gray-300 rounded"></div>
-                  <div className="h-6 w-3/4 bg-gray-300 rounded"></div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {[...Array(3)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-4 w-16 bg-gray-300 rounded-full"
-                      ></div>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-auto">
-                  <div className="h-4 w-24 bg-gray-300 rounded"></div>
-                </div>
-              </div>
-            </div>
+            <ProductCardSkeleton />
           </div>
         ))}
       </div>
     );
-  };
+  }, [visibleCount]);
 
-  if (loading) {
+  // Memoized visible products calculation
+  const getVisibleProductsWithLayout = React.useCallback(() => {
+    if (!featuredProducts.length) return [];
+
+    const result = [];
+    const totalCount = featuredProducts.length;
+
+    if (direction !== 0) {
+      const prevIndex =
+        direction > 0
+          ? (activeIndex - 1 + totalCount) % totalCount
+          : (activeIndex + visibleCount) % totalCount;
+
+      result.push({
+        product: featuredProducts[direction > 0 ? prevIndex : prevIndex],
+        layout: {
+          position: direction > 0 ? 0 : visibleCount - 1,
+          isEntering: false,
+          isExiting: true,
+        },
+      });
+    }
+
+    for (let i = 0; i < Math.min(visibleCount, totalCount); i++) {
+      const index = (activeIndex + i) % totalCount;
+      result.push({
+        product: featuredProducts[index],
+        layout: {
+          position: i,
+          isEntering: false,
+          isExiting: false,
+        },
+      });
+    }
+
+    if (direction !== 0) {
+      const enteringIndex =
+        direction > 0
+          ? (activeIndex + visibleCount) % totalCount
+          : (activeIndex - 1 + totalCount) % totalCount;
+
+      result.push({
+        product: featuredProducts[enteringIndex],
+        layout: {
+          position: direction > 0 ? visibleCount - 1 : 0,
+          isEntering: true,
+          isExiting: false,
+        },
+      });
+    }
+
+    return result;
+  }, [featuredProducts, activeIndex, direction, visibleCount]);
+
+  const visibleProducts = React.useMemo(() => getVisibleProductsWithLayout(), [getVisibleProductsWithLayout]);
+
+  if (loading || !isMotionLoaded) {
     return (
       <div className="container px-4 pb-10 sm:px-6 flex flex-col items-center mt-5 mx-auto mb-5 xl:mb-24 overflow-hidden">
         <div className="text-2xl md:text-4xl lg:text-5xl font-semibold text-center flex items-center flex-col">
@@ -301,7 +461,7 @@ const FeaturedProducts = () => {
             All Products
           </button>
         </Link>
-        <ProductSkeleton />
+        {ProductSkeleton}
       </div>
     );
   }
@@ -339,6 +499,7 @@ const FeaturedProducts = () => {
           onClick={handlePrevSlide}
           className="bg-white text-green cursor-pointer rounded-full shadow-lg hover:text-[var(--color-green)] hover:scale-105 p-2 transition-all duration-300"
           disabled={featuredProducts.length <= visibleCount}
+          aria-label="Previous products"
         >
           <ArrowLeft size={24} />
         </button>
@@ -346,6 +507,7 @@ const FeaturedProducts = () => {
           onClick={handleNextSlide}
           className="bg-white text-green cursor-pointer rounded-full shadow-lg hover:text-[var(--color-green)] hover:scale-105 p-2 transition-all duration-300"
           disabled={featuredProducts.length <= visibleCount}
+          aria-label="Next products"
         >
           <ArrowRight size={24} />
         </button>
@@ -353,83 +515,31 @@ const FeaturedProducts = () => {
 
       <div className="relative w-full max-w-7xl">
         <div ref={carouselRef} className="relative w-full min-h-[28rem]">
-          <AnimatePresence initial={false} custom={direction} mode="popLayout">
-            {getVisibleProductsWithLayout().map((item) => (
-              <ProductCard
-                key={`${item.product._id}-${item.layout.position}-${
-                  item.layout.isEntering
-                    ? "entering"
-                    : item.layout.isExiting
-                    ? "exiting"
-                    : "visible"
-                }`}
-                item={item.product}
-                layout={item.layout}
-              />
-            ))}
-          </AnimatePresence>
+          <Suspense fallback={ProductSkeleton}>
+            <AnimatePresence initial={false} custom={direction} mode="popLayout">
+              {visibleProducts.map((item) => (
+                <ProductCard
+                  key={`${item.product._id}-${item.layout.position}-${
+                    item.layout.isEntering
+                      ? "entering"
+                      : item.layout.isExiting
+                      ? "exiting"
+                      : "visible"
+                  }`}
+                  item={item.product}
+                  layout={item.layout}
+                  direction={direction}
+                  windowWidth={windowWidth}
+                  visibleCount={visibleCount}
+                  isAnimatingRef={isAnimatingRef}
+                />
+              ))}
+            </AnimatePresence>
+          </Suspense>
         </div>
       </div>
     </div>
   );
-
-  // Helper function to get visible product indices with their positions
-  function getVisibleProductsWithLayout() {
-    if (!featuredProducts.length) return [];
-
-    const result = [];
-    const totalCount = featuredProducts.length;
-
-    // Only proceed with transition elements if we're currently animating
-    if (direction !== 0) {
-      const prevIndex =
-        direction > 0
-          ? (activeIndex - 1 + totalCount) % totalCount
-          : (activeIndex + visibleCount) % totalCount;
-
-      // Add the exiting element
-      result.push({
-        product: featuredProducts[direction > 0 ? prevIndex : prevIndex],
-        layout: {
-          position: direction > 0 ? 0 : visibleCount - 1,
-          isEntering: false,
-          isExiting: true,
-        },
-      });
-    }
-
-    // Add the visible elements
-    for (let i = 0; i < Math.min(visibleCount, totalCount); i++) {
-      const index = (activeIndex + i) % totalCount;
-      result.push({
-        product: featuredProducts[index],
-        layout: {
-          position: i,
-          isEntering: false,
-          isExiting: false,
-        },
-      });
-    }
-
-    // Add the entering element if animating
-    if (direction !== 0) {
-      const enteringIndex =
-        direction > 0
-          ? (activeIndex + visibleCount) % totalCount
-          : (activeIndex - 1 + totalCount) % totalCount;
-
-      result.push({
-        product: featuredProducts[enteringIndex],
-        layout: {
-          position: direction > 0 ? visibleCount - 1 : 0,
-          isEntering: true,
-          isExiting: false,
-        },
-      });
-    }
-
-    return result;
-  }
 };
 
 export default FeaturedProducts;

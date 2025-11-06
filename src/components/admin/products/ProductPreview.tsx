@@ -27,6 +27,13 @@ export default function ProductPreview({ product }: ProductPreviewProps) {
             <p className="text-gray-600">{product.description}</p>
           </div>
         )}
+
+        {product.applications && (
+        <div>
+          <h4 className="text-sm font-medium text-gray-700">Applications:</h4>
+          <p className="text-gray-600">{product.applications}</p>
+        </div>
+      )}
         
         {product.group && <p className="text-gray-600">Group: {product.group}</p>}
         

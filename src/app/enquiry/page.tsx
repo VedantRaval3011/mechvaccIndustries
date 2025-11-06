@@ -53,9 +53,8 @@ export default function EnquiryPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Show processing toast
     const processingToastId = toast.info("Processing your enquiry...", {
-      autoClose: false, // Keep it open until updated
+      autoClose: false,
     });
 
     try {
@@ -68,11 +67,10 @@ export default function EnquiryPage() {
       });
 
       if (res.ok) {
-        // Update toast to success
         toast.update(processingToastId, {
           render: "Your enquiry has been submitted successfully.",
           type: "success",
-          autoClose: 5000, // Close after 5 seconds
+          autoClose: 5000,
         });
         setFormData({
           firstname: "",
@@ -84,7 +82,6 @@ export default function EnquiryPage() {
         });
       } else {
         const errorData = await res.json();
-        // Update toast to error
         toast.update(processingToastId, {
           render: `Submission error: ${errorData.message}`,
           type: "error",
@@ -92,7 +89,6 @@ export default function EnquiryPage() {
         });
       }
     } catch (error) {
-      // Update toast to error
       toast.update(processingToastId, {
         render: `Submission failed: ${error instanceof Error ? error.message : "An unexpected error occurred"}`,
         type: "error",
@@ -108,174 +104,177 @@ export default function EnquiryPage() {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.15,
-        delayChildren: 0.4,
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
       },
     },
   };
 
   const itemVariants = {
-    hidden: { y: 60, opacity: 0 },
+    hidden: { y: 20, opacity: 0 },
     visible: {
       y: 0,
       opacity: 1,
       transition: {
-        type: "spring",
-        stiffness: 100,
-        damping: 20,
+        duration: 0.5,
+        ease: "easeOut",
       },
     },
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-gray-100 to-gray-200 text-gray-900 pb-20 overflow-hidden relative">
-      {/* Light-themed background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[var(--color-green)]/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-0 w-72 h-72 bg-[var(--color-green)]/20 rounded-full blur-3xl animate-pulse delay-1000" />
-      </div>
-
-      {/* Main content */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 font-['Inter',sans-serif] py-16 lg:py-24">
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="max-w-7xl mx-auto px-6 lg:px-20 mt-16 lg:mt-24 relative z-10"
+        className="max-w-7xl mx-auto px-6 lg:px-12"
       >
-        <div className="grid lg:grid-cols-2 gap-16">
-          {/* Contact Info */}
-          <motion.div variants={itemVariants} className="relative">
-            <div className="absolute -top-8 -left-8 w-32 h-32 bg-[var(--color-green)]/20 rounded-full blur-2xl animate-pulse delay-500" />
-            <h1 className="text-4xl lg:text-6xl font-extrabold mb-8 bg-gradient-to-r from-[var(--color-green)] to-[var(--color-green)]/70 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(var(--color-green-rgb),0.3)]">
-              Contact Us
-            </h1>
-            <p className="text-gray-700 lg:text-xl mb-10 leading-relaxed font-light tracking-wide">
-              We value your interest in our services. Please feel free to reach out with any questions or inquiries—we are here to assist you.
-            </p>
-            <div className="space-y-10">
+        <div className="grid lg:grid-cols-5 gap-12 lg:gap-16">
+          {/* Contact Info - 2 columns */}
+          <motion.div variants={itemVariants} className="lg:col-span-2 space-y-8">
+            <div>
+              <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">
+                Get in Touch
+              </h1>
+              <p className="text-gray-600 text-base lg:text-lg leading-relaxed">
+                Have questions or need assistance? We're here to help. Reach out to our team and we'll respond promptly.
+              </p>
+            </div>
+
+            <div className="space-y-6 pt-4">
               {[
                 {
                   icon: MapPinHouse,
+                  label: "Address",
                   text: "Sector 1055, Lorem Quadrant, Elk Groot System",
                 },
-                { icon: PhoneCall, text: "+1 234 678 9108 99" },
-                { icon: Mail, text: "contact@mechvacc.com" },
+                { 
+                  icon: PhoneCall, 
+                  label: "Phone",
+                  text: "+1 234 678 9108 99" 
+                },
+                { 
+                  icon: Mail, 
+                  label: "Email",
+                  text: "contact@mechvacc.com" 
+                },
               ].map((item, index) => (
                 <motion.div
                   key={index}
                   variants={itemVariants}
-                  className="flex items-center gap-5 group"
-                  whileHover={{ x: 10 }}
+                  className="flex items-start gap-4 group"
                 >
-                  <div className="p-4 bg-[var(--color-green)]/20 rounded-full group-hover:bg-[var(--color-green)]/40 group-hover:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.5)] transition-all duration-300">
-                    <item.icon className="text-[var(--color-green)]" size={30} />
+                  <div className="flex-shrink-0 w-12 h-12 bg-[var(--color-green)]/10 rounded-lg flex items-center justify-center group-hover:bg-[var(--color-green)]/20 transition-colors duration-300">
+                    <item.icon className="text-[var(--color-green)] w-5 h-5" strokeWidth={2} />
                   </div>
-                  <p className="font-medium text-gray-800 group-hover:text-[var(--color-green)] transition-colors duration-300">
-                    {item.text}
-                  </p>
+                  <div className="flex-1 pt-1">
+                    <p className="text-sm font-medium text-gray-500 mb-1">{item.label}</p>
+                    <p className="text-gray-900 font-medium">{item.text}</p>
+                  </div>
                 </motion.div>
               ))}
             </div>
           </motion.div>
 
-          {/* Form */}
+          {/* Form - 3 columns */}
           <motion.div
             variants={itemVariants}
-            className="relative bg-white/90 backdrop-blur-xl rounded-3xl p-10 shadow-[0_0_30px_rgba(var(--color-green-rgb),0.1)] border border-[var(--color-green)]/30"
+            className="lg:col-span-3 bg-white rounded-2xl p-8 lg:p-10 shadow-sm border border-gray-200"
           >
-            <div className="absolute -top-6 -right-6 w-40 h-40 bg-[var(--color-green)]/15 rounded-full blur-3xl animate-pulse delay-700" />
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {["firstname", "lastname"].map((field) => (
-                  <motion.input
-                    key={field}
-                    variants={itemVariants}
-                    type="text"
-                    name={field}
-                    placeholder={`${field === "firstname" ? "First" : "Last"} Name*`}
-                    className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50"
-                    required
-                    value={formData[field as keyof FormData]}
-                    onChange={handleChange}
-                    whileFocus={{ scale: 1.02 }}
-                  />
+                  <div key={field}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {field === "firstname" ? "First Name" : "Last Name"} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name={field}
+                      placeholder={`Enter your ${field === "firstname" ? "first" : "last"} name`}
+                      className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200"
+                      required
+                      value={formData[field as keyof FormData]}
+                      onChange={handleChange}
+                    />
+                  </div>
                 ))}
               </div>
 
-              <motion.input
-                variants={itemVariants}
-                type="email"
-                name="email"
-                placeholder="Email Address*"
-                className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                whileFocus={{ scale: 1.02 }}
-              />
-
-              <motion.div variants={itemVariants} className="flex gap-6">
-                <select
-                  name="country"
-                  value={formData.country}
-                  onChange={handleCountryChange}
-                  required
-                  className="p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 transition-all duration-300 hover:border-[var(--color-green)]/50"
-                >
-                  <option value="" className="bg-gray-50">
-                    Select Country
-                  </option>
-                  {countries.map((country) => (
-                    <option
-                      key={country.code}
-                      value={country.code}
-                      className="bg-gray-50"
-                    >
-                      {country.name} ({country.code})
-                    </option>
-                  ))}
-                </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="tel"
-                  name="contact"
-                  placeholder="Phone Number*"
-                  className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50"
+                  type="email"
+                  name="email"
+                  placeholder="your.email@example.com"
+                  className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200"
                   required
-                  value={formData.contact}
+                  value={formData.email}
                   onChange={handleChange}
-                  pattern="[0-9]*"
                 />
-              </motion.div>
+              </div>
 
-              <motion.textarea
-                variants={itemVariants}
-                name="message"
-                placeholder="Your Message*"
-                className="w-full p-4 rounded-xl bg-gray-50/80 border border-[var(--color-green)]/30 focus:outline-none focus:border-[var(--color-green)] focus:shadow-[0_0_15px_rgba(var(--color-green-rgb),0.4)] text-gray-900 placeholder-gray-400 transition-all duration-300 hover:border-[var(--color-green)]/50 min-h-[160px] resize-none"
-                required
-                value={formData.message}
-                onChange={handleChange}
-                whileFocus={{ scale: 1.02 }}
-              />
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Country <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="country"
+                    value={formData.country}
+                    onChange={handleCountryChange}
+                    required
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 transition-all duration-200"
+                  >
+                    <option value="">Select</option>
+                    {countries.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="contact"
+                    placeholder="Enter your phone number"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200"
+                    required
+                    value={formData.contact}
+                    onChange={handleChange}
+                    pattern="[0-9]*"
+                  />
+                </div>
+              </div>
 
-              <motion.button
-                variants={itemVariants}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Message <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  name="message"
+                  placeholder="Tell us how we can help you..."
+                  className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200 min-h-[140px] resize-none"
+                  required
+                  value={formData.message}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full p-4 bg-gradient-to-r from-[var(--color-green)] to-[var(--color-green)]/70 text-white rounded-xl font-semibold relative overflow-hidden group shadow-[0_0_20px_rgba(var(--color-green-rgb),0.5)] disabled:opacity-60"
-                whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(var(--color-green-rgb),0.7)" }}
-                whileTap={{ scale: 0.95 }}
+                className="w-full px-6 py-3.5 bg-[var(--color-green)] hover:bg-[var(--color-green)]/90 text-white rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
               >
-                <span className="relative z-10">
-                  {isSubmitting ? "Submitting..." : "Submit Enquiry"}
-                </span>
-                <motion.div
-                  className="absolute inset-0 bg-[var(--color-green)]/40"
-                  initial={{ scale: 0, opacity: 0 }}
-                  whileHover={{ scale: 2, opacity: 1 }}
-                  transition={{ duration: 0.4 }}
-                />
-              </motion.button>
+                {isSubmitting ? "Submitting..." : "Submit Enquiry"}
+              </button>
             </form>
           </motion.div>
         </div>

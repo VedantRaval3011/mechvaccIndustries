@@ -1,652 +1,161 @@
-"use client";
-
-import { useState, useEffect, useRef } from "react";
+import { Metadata } from "next";
+import ProductDetailClient from "@/components/ProductDetailClient";
 import { Product } from "@/types/product";
-import {
-  ChevronLeft,
-  Star,
-  Download,
-  Play,
-  Share2,
-  Copy,
-  Mail,
-  Facebook,
-  Send,
-} from "lucide-react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
-import Head from "next/head";
-import { useSearchParams } from "next/navigation";
-import { use } from "react";
-import toast, { Toaster } from "react-hot-toast";
-import { useProductStore } from "@/store/productStore";
-
-// Function to convert product name to URL slug
-const createSlug = (name: string): string => {
-  return name
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '') // Remove special characters
-    .replace(/\s+/g, '-')     // Replace spaces with hyphens
-    .replace(/-+/g, '-')      // Remove duplicate hyphens
-    .trim();
-};
-
-// Function to convert slug back to name for querying
-const slugToName = (slug: string): string => {
-  return slug
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-};
 
 interface ExtendedProduct extends Product {
   _id: string;
 }
 
-export default function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const [product, setProduct] = useState<ExtendedProduct | null>(null);
-  const [interestingProducts, setInterestingProducts] = useState<ExtendedProduct[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeImage, setActiveImage] = useState<string>("");
-  const [isShareMenuOpen, setIsShareMenuOpen] = useState<boolean>(false);
-  const [isInterestingLoading, setIsInterestingLoading] = useState<boolean>(false);
-  const [showInterestForm, setShowInterestForm] = useState<boolean>(false);
-  const [queryValues, setQueryValues] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [showThankYou, setShowThankYou] = useState<boolean>(false);
-  const [defaultQueries] = useState([
-    { title: 'Name', type: 'string' },
-    { title: 'Phone Number', type: 'string' },
-  ]);
+interface ProductDetailPageProps {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ id?: string }>;
+}
 
-  const shareMenuRef = useRef<HTMLDivElement>(null);
-  const resolvedParams = use(params);
-  const slug = resolvedParams.slug;
-  const searchParams = useSearchParams();
-  const productId = searchParams.get('id');
-  const getProductBySlug = useProductStore((state) => state.getProductBySlug);
+// Function to convert slug to name for querying
+const slugToName = (slug: string): string => {
+  return slug
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
 
-  useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        let id = productId;
+// Fetch product data
+async function fetchProduct(slug: string, productId?: string): Promise<ExtendedProduct | null> {
+  try {
+    let id = productId;
 
-        if (!id) {
-          const storedProduct = getProductBySlug(slug);
-          id = storedProduct?._id ?? null;
-        }
-
-        if (!id) {
-          const name = slugToName(slug);
-          const productsRes = await fetch(`/api/products`);
-          if (!productsRes.ok) throw new Error("Failed to fetch products list");
-          const products: ExtendedProduct[] = await productsRes.json();
-          const targetProduct = products.find((p) => p.name.toLowerCase() === name.toLowerCase());
-          if (!targetProduct) throw new Error("Product not found");
-          id = targetProduct._id;
-        }
-
-        const productRes = await fetch(`/api/products/${id}`);
-        if (!productRes.ok) throw new Error("Failed to fetch product");
-        const data = await productRes.json();
-        setProduct(data as ExtendedProduct);
-        setActiveImage(data.displayImage || "");
-        fetchInterestingProducts();
-      } catch (error) {
-        console.error("Error fetching product:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProduct();
-  }, [slug, productId, getProductBySlug]);
-
-  const fetchInterestingProducts = async () => {
-    setIsInterestingLoading(true);
-    try {
-      const res = await fetch(`/api/products?featured=true&limit=4`);
-      if (!res.ok) throw new Error("Failed to fetch interesting products");
-      const data = await res.json();
-      const productsArray = Array.isArray(data) ? data : [];
-      setInterestingProducts(productsArray.slice(0, 4) as ExtendedProduct[]);
-    } catch (error) {
-      console.error("Error fetching interesting products:", error);
-    } finally {
-      setIsInterestingLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target as Node)) {
-        setIsShareMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const copyLinkToClipboard = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    toast.success("Link copied to clipboard!");
-    setIsShareMenuOpen(false);
-  };
-
-  const shareViaEmail = () => {
-    if (!product) return;
-    const subject = encodeURIComponent(`Check out this product: ${product.displayTitle}`);
-    const body = encodeURIComponent(
-      `I found this amazing product:\n\n${product.displayTitle}\n\n${window.location.href}\n\n${product.name}`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    setIsShareMenuOpen(false);
-  };
-
-  const shareToSocialMedia = (platform: "facebook" | "whatsapp") => {
-    if (!product) return;
-    const url = encodeURIComponent(window.location.href);
-    const title = encodeURIComponent(`Check out this product: ${product.displayTitle}`);
-    let shareUrl = "";
-    switch (platform) {
-      case "facebook":
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-        break;
-      case "whatsapp":
-        shareUrl = `https://api.whatsapp.com/send?text=${title}%20${url}`;
-        break;
-    }
-    if (shareUrl) window.open(shareUrl, "_blank");
-    setIsShareMenuOpen(false);
-  };
-
-  const handleQueryChange = (queryTitle: string, value: string) => {
-    setQueryValues(prev => ({
-      ...prev,
-      [queryTitle]: value,
-    }));
-  };
-
-  const submitInterest = async () => {
-    if (!product) return;
-
-    try {
-      setIsSubmitting(true);
-      const allQueries = [...defaultQueries, ...(product.queries || [])];
-      const uniqueQueries = Array.from(
-        new Map(allQueries.map(query => [query.title, query])).values()
-      );
-      const queriesWithValues = uniqueQueries.map(query => ({
-        ...query,
-        value: queryValues[query.title] || '',
-      }));
-
-      const updateResponse = await fetch(`/api/products/step3/${product._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queries: queriesWithValues }),
+    if (!id) {
+      const name = slugToName(slug);
+      const productsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products`, {
+        cache: "no-store", // Ensure fresh data
       });
-
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json();
-        throw new Error(errorData.error || 'Failed to update product queries');
-      }
-
-      const emailResponse = await fetch('/api/send-interest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product._id,
-          productTitle: product.displayTitle,
-          userQueries: queriesWithValues,
-        }),
-      });
-
-      if (!emailResponse.ok) {
-        const errorData = await emailResponse.json();
-        throw new Error(errorData.error || 'Failed to send email');
-      }
-
-      setShowInterestForm(false);
-      setShowThankYou(true);
-      setQueryValues({});
-      setTimeout(() => setShowThankYou(false), 5000);
-    } catch (error) {
-      console.error('Error submitting interest:', error);
-      toast.error('Failed to submit interest. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+      if (!productsRes.ok) throw new Error("Failed to fetch products list");
+      const products: ExtendedProduct[] = await productsRes.json();
+      const targetProduct = products.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      if (!targetProduct) return null;
+      id = targetProduct._id;
     }
-  };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-gray-bg)]">
-        <motion.div
-          className="relative w-16 h-16"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-        >
-          <motion.div
-            className="absolute inset-0 border-4 border-t-[var(--color-green)] border-r-transparent border-b-transparent border-l-transparent rounded-full"
-          />
-        </motion.div>
-        <motion.p
-          className="mt-6 text-xl font-medium"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          Loading Product Details...
-        </motion.p>
-      </div>
-    );
+    const productRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${id}`, {
+      cache: "no-store",
+    });
+    if (!productRes.ok) throw new Error("Failed to fetch product");
+    return await productRes.json();
+  } catch (error) {
+    console.error("Error fetching product:", error);
+    return null;
   }
+}
+
+// Fetch interesting products
+async function fetchInterestingProducts(): Promise<ExtendedProduct[]> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products?featured=true&limit=4`, {
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error("Failed to fetch interesting products");
+    const data = await res.json();
+    return Array.isArray(data) ? data.slice(0, 4) : [];
+  } catch (error) {
+    console.error("Error fetching interesting products:", error);
+    return [];
+  }
+}
+
+export async function generateMetadata({ params, searchParams }: ProductDetailPageProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+  const product = await fetchProduct(resolvedParams.slug, resolvedSearchParams.id);
+
+  if (!product) {
+    return {
+      title: "Product Not Found",
+      description: "The requested product could not be found.",
+    };
+  }
+
+  const pageTitle = `${product.displayTitle} - ${product.group || "Product"}`;
+  const metaDescription = `${product.description || product.displayTitle} - High-quality ${
+    product.group || "product"
+  }.`;
+  const canonicalUrl = `https://yourdomain.com/products/${resolvedParams.slug}`;
+  const keywords = product.seoKeywords
+    ? product.seoKeywords
+    : `${product.displayTitle}, ${product.group}, buy online`;
+
+  return {
+    title: pageTitle,
+    description: metaDescription,
+    keywords,
+    robots: "index, follow",
+    openGraph: {
+      title: pageTitle,
+      description: metaDescription,
+      images: [product.displayImage || "/default-image.jpg"],
+      url: canonicalUrl,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: pageTitle,
+      description: metaDescription,
+      images: [product.displayImage || "/default-image.jpg"],
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
+
+export default async function ProductDetailPage({ params, searchParams }: ProductDetailPageProps) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+  const product = await fetchProduct(resolvedParams.slug, resolvedSearchParams.id);
+  const interestingProducts = await fetchInterestingProducts();
 
   if (!product) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-gray-bg)]">
-        <motion.div
-          className="text-center bg-white p-8 rounded-2xl shadow-lg"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-        >
+        <div className="text-center bg-white p-8 rounded-2xl shadow-lg">
           <h2 className="text-2xl font-semibold text-gray-700 mb-4">Product Not Found</h2>
-          <Link href="/products">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-6 py-3 bg-[var(--color-green)] text-white rounded-xl font-medium"
-            >
-              Back to Products
-            </motion.button>
-          </Link>
-        </motion.div>
+          <a href="/products" className="px-6 py-3 bg-[var(--color-green)] text-white rounded-xl font-medium">
+            Back to Products
+          </a>
+        </div>
       </div>
     );
   }
 
-  const pageTitle = `${product.displayTitle} - ${product.group || "Product"}`;
-  const metaDescription = `${product.description} - High-quality ${product.group || "product"}.`;
-  const canonicalUrl = `https://yourdomain.com/products/${slug}`;
-  const keywords = product.seoKeywords || `${product.displayTitle}, ${product.group}, buy online`;
-
   return (
     <>
-      <Head>
-        <title>{pageTitle}</title>
-        <meta name="description" content={metaDescription} />
-        <meta name="keywords" content={keywords} />
-        <meta name="robots" content="index, follow" />
-        <meta charSet="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="canonical" href={canonicalUrl} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={metaDescription} />
-        <meta property="og:image" content={product.displayImage || "/default-image.jpg"} />
-        <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:type" content="product" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={metaDescription} />
-        <meta name="twitter:image" content={product.displayImage || "/default-image.jpg"} />
-      </Head>
-
-      <Toaster position="top-center" />
-
-      <div className="min-h-screen bg-[var(--color-gray-bg)] py-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-8"
-          >
-            <Link href="/products">
-              <motion.button
-                whileHover={{ x: -5 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 text-[var(--color-green)] font-medium hover:underline"
-              >
-                <ChevronLeft className="h-5 w-5" />
-                Back to Products
-              </motion.button>
-            </Link>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-            className="bg-white rounded-2xl shadow-lg overflow-hidden"
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="p-6">
-                <motion.div
-                  className="relative rounded-xl overflow-hidden bg-gray-100"
-                  whileHover={{ scale: 1.02 }}
-                  transition={{ duration: 0.3 }}
-                  style={{ width: '100%', height: '500px' }}
-                >
-                  <Image
-                    src={activeImage || "/no-image-placeholder.png"}
-                    alt={product.displayTitle}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    priority
-                    style={{
-                      objectFit: 'contain',
-                      backgroundColor: '#f9f9f9'
-                    }}
-                    quality={100}
-                  />
-                </motion.div>
-
-                {product.additionalImages && product.additionalImages.length > 0 && (
-                  <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-                    {[product.displayImage, ...product.additionalImages].map((img, index) => (
-                      <motion.div
-                        key={index}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setActiveImage(img)}
-                        className={`relative cursor-pointer rounded-lg overflow-hidden ${
-                          activeImage === img ? "ring-2 ring-[var(--color-green)]" : ""
-                        }`}
-                        style={{ width: '80px', height: '80px', flexShrink: 0 }}
-                      >
-                        <Image
-                          src={img}
-                          alt={`Thumbnail ${index}`}
-                          fill
-                          sizes="80px"
-                          style={{ objectFit: 'cover' }}
-                          quality={80}
-                        />
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="p-6 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start">
-                    <p className="text-sm font-medium text-[var(--color-green)] mb-2">
-                      {product.group || "Uncategorized"}
-                    </p>
-                    <div className="relative" ref={shareMenuRef}>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsShareMenuOpen(!isShareMenuOpen)}
-                        className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        <span className="text-sm">Share</span>
-                      </motion.button>
-                      <AnimatePresence>
-                        {isShareMenuOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                            className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg z-50 overflow-hidden"
-                          >
-                            <div className="p-2">
-                              <button
-                                onClick={copyLinkToClipboard}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-                              >
-                                <Copy className="h-4 w-4" />
-                                Copy Link
-                              </button>
-                              <button
-                                onClick={shareViaEmail}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-                              >
-                                <Mail className="h-4 w-4" />
-                                Email
-                              </button>
-                              <button
-                                onClick={() => shareToSocialMedia("facebook")}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-                              >
-                                <Facebook className="h-4 w-4" />
-                                Facebook
-                              </button>
-                              <button
-                                onClick={() => shareToSocialMedia("whatsapp")}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
-                              >
-                                <Send className="h-4 w-4" />
-                                WhatsApp
-                              </button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  <h1 className="text-3xl font-bold text-[var(--color-black)] mb-3">
-                    {product.displayTitle}
-                  </h1>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Star className="h-5 w-5 text-amber-400 fill-amber-400" />
-                    <span className="text-gray-600">Premium Product</span>
-                  </div>
-                  <p className="text-gray-600 mb-6">{product.name}</p>
-                  {product.description && (
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold text-[var(--color-black)] mb-2">
-                        Description
-                      </h3>
-                      <p className="text-gray-600">{product.description}</p>
-                    </div>
-                  )}
-
-                  {product.specifications && Array.isArray(product.specifications) && product.specifications.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold text-[var(--color-black)] mb-3">
-                        Specifications
-                      </h3>
-                      <ul className="space-y-2">
-                        {product.specifications.map((spec, index) => (
-                          <li key={index} className="flex items-center gap-2">
-                            <span className="text-[var(--color-green)]">•</span>
-                            <span className="text-gray-700">
-                              <strong>{spec.title}:</strong> {spec.value}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {product.seoKeywords && (
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      {product.seoKeywords.split(',').map((keyword, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md"
-                        >
-                          {keyword.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex gap-4 flex-wrap">
-                    {product.video && (
-                      <motion.a
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        href={product.video}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200"
-                      >
-                        <Play className="h-5 w-5" />
-                        Watch Video
-                      </motion.a>
-                    )}
-                    {product.pdf && (
-                      <motion.a
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        href={product.pdf}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-[var(--color-green)] rounded-xl font-medium hover:bg-gray-200"
-                      >
-                        <Download className="h-5 w-5" />
-                        Download PDF
-                      </motion.a>
-                    )}
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowInterestForm(true)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-green)] text-white rounded-xl font-medium hover:bg-green-600"
-                    >
-                      I&apos;m Interested
-                    </motion.button>
-                  </div>
-
-                  <AnimatePresence>
-                    {showInterestForm && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="p-4 bg-gray-50 rounded-xl relative"
-                      >
-                        {Array.from(
-                          new Map([...defaultQueries, ...(product.queries || [])].map(query => [query.title, query])).values()
-                        ).map((query, idx) => (
-                          <div key={idx} className="mb-3">
-                            <label className="block text-sm font-medium mb-1">
-                              {query.title}
-                            </label>
-                            <input
-                              type={query.type === 'number' ? 'number' : 'text'}
-                              value={queryValues[query.title] || ''}
-                              onChange={(e) => handleQueryChange(query.title, e.target.value)}
-                              className="w-full p-2 border rounded-md"
-                              placeholder={`Enter ${query.title}`}
-                              required={query.title === 'Name' || query.title === 'Phone Number'}
-                              disabled={isSubmitting}
-                            />
-                          </div>
-                        ))}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={submitInterest}
-                            disabled={isSubmitting}
-                            className="flex-1 px-4 py-2 bg-[var(--color-green)] text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isSubmitting ? (
-                              <motion.span
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                              />
-                            ) : (
-                              'Submit'
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setShowInterestForm(false)}
-                            disabled={isSubmitting}
-                            className="flex-1 px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                    {showThankYou && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-center"
-                      >
-                        <h3 className="text-lg font-semibold text-green-700">
-                          Thank You for Reaching Out!
-                        </h3>
-                        <p className="text-green-600">
-                          We will contact you soon.
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {interestingProducts.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.3 }}
-              className="mt-16"
-            >
-              <h2 className="text-2xl font-bold text-[var(--color-black)] mb-6">
-                Our Interesting Products
-              </h2>
-
-              {isInterestingLoading ? (
-                <p className="text-gray-600">Loading interesting products...</p>
-              ) : interestingProducts.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {interestingProducts.map((interestingProduct, index) => (
-                    <motion.div
-                      key={index}
-                      whileHover={{ y: -5, scale: 1.02 }}
-                      transition={{ duration: 0.3 }}
-                      className="bg-white rounded-xl shadow-md overflow-hidden"
-                    >
-                      <Link href={`/products/${createSlug(interestingProduct.name)}?id=${interestingProduct._id}`}>
-                        <div className="relative bg-gray-100" style={{ height: '200px' }}>
-                          <Image
-                            src={interestingProduct.displayImage || "/no-image-placeholder.png"}
-                            alt={`Image of ${interestingProduct.displayTitle}`}
-                            fill
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                            style={{
-                              objectFit: 'contain',
-                              backgroundColor: '#f9f9f9'
-                            }}
-                            quality={80}
-                          />
-                        </div>
-                        <div className="p-4">
-                          <p className="text-xs font-medium text-[var(--color-green)] mb-1">
-                            {interestingProduct.group}
-                          </p>
-                          <h3 className="text-lg font-semibold text-[var(--color-black)] mb-2 line-clamp-1">
-                            {interestingProduct.displayTitle}
-                          </h3>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-600">No interesting products available at the moment.</p>
-              )}
-            </motion.div>
-          )}
-        </div>
-      </div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "http://schema.org",
+            "@type": "Product",
+            name: product.displayTitle,
+            description: product.description || product.displayTitle,
+            image: product.displayImage || "/default-image.jpg",
+            offers: {
+              "@type": "Offer",
+              availability: "http://schema.org/InStock",
+              priceCurrency: "USD",
+              price: "0.00", // Update with actual price if available
+            },
+            additionalProperty: product.specifications?.map((spec) => ({
+              "@type": "PropertyValue",
+              name: spec.title,
+              value: spec.value,
+            })),
+          }),
+        }}
+      />
+      <ProductDetailClient
+        product={product}
+        interestingProducts={interestingProducts}
+        slug={resolvedParams.slug}
+      />
     </>
   );
 }

@@ -1,9 +1,9 @@
-// app/api/products/[id]/route.ts
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import dbConnect from '@/lib/db';
 import Product from '@/models/products.model';
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import { CustomSection } from '@/types/product';
 
 export async function GET(request: NextRequest) {
   try {
@@ -63,20 +63,24 @@ export async function PUT(request: NextRequest) {
       })
     );
 
-    // Log data for debugging
-    console.log('Updating product with data:', {
-      name: data.get('name'),
-      displayTitle: data.get('displayTitle'),
-      group: data.get('group'),
-      price: data.get('price'),
-      priceLabel: data.get('priceLabel'),
-      description: data.get('description'),
-      displayImage: displayImageUrl,
-      additionalImages: additionalImageUrls,
-      video: data.get('video'),
-      pdf: data.get('pdf'),
-      seoKeywords: data.get('seoKeywords'),
-    });
+    // Parse customSections from FormData
+    let customSections: CustomSection[] = [];
+    const customSectionsRaw = data.get('customSections') as string;
+    if (customSectionsRaw) {
+      try {
+        customSections = JSON.parse(customSectionsRaw);
+        // Validate customSections format
+        if (!Array.isArray(customSections)) {
+          return NextResponse.json({ error: 'customSections must be an array' }, { status: 400 });
+        }
+        customSections = customSections.map((section) => ({
+          title: section.title,
+          content: section.content,
+        }));
+      } catch (e) {
+        return NextResponse.json({ error: 'Invalid customSections format' }, { status: 400 });
+      }
+    }
 
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
@@ -87,11 +91,13 @@ export async function PUT(request: NextRequest) {
         price: data.get('price') ? parseInt(data.get('price') as string, 10) : undefined,
         priceLabel: (data.get('priceLabel') as string) || '',
         description: (data.get('description') as string) || '',
+        applications: (data.get('applications') as string) || '',
         displayImage: displayImageUrl,
         additionalImages: additionalImageUrls,
-        video: data.get('video') as string || undefined,
-        pdf: data.get('pdf') as string || undefined,
-        seoKeywords: data.get('seoKeywords') as string || undefined,
+        video: (data.get('video') as string) || undefined,
+        pdf: (data.get('pdf') as string) || undefined,
+        seoKeywords: (data.get('seoKeywords') as string) || undefined,
+        customSections: customSections.length > 0 ? customSections : undefined,
       },
       { new: true, runValidators: true }
     );
@@ -116,7 +122,7 @@ export async function DELETE(request: NextRequest) {
   try {
     await dbConnect();
     const id = request.nextUrl.pathname.split('/').pop();
-
+ 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid product ID format' }, { status: 400 });
     }

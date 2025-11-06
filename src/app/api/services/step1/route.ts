@@ -1,4 +1,3 @@
-// app/api/services/step1/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Service from '@/models/service.model';
 import connectDb from '@/lib/db';
@@ -27,16 +26,20 @@ export async function POST(req: NextRequest) {
     const video = formData.get('video') as string;
     const pdf = formData.get('pdf') as string;
     const seoKeywords = formData.get('seoKeywords') as string;
+    const applications = formData.get('applications') as string | undefined;
+    const customSections = formData.get("customSections")
+         ? JSON.parse(formData.get("customSections") as string)
+         : [];
 
-    if (!name || !displayTitle) {
-      return NextResponse.json({ error: 'Name and displayTitle are required' }, { status: 400 });
+    if (!name || !displayTitle || !displayImage) {
+      return NextResponse.json({ error: 'Name, displayTitle, and displayImage are required' }, { status: 400 });
     }
 
     // Handle display image upload
     let displayImageUrl = '';
     if (displayImage instanceof File) {
       const displayImageBase64 = await fileToBase64(displayImage);
-      displayImageUrl = await uploadToCloudinary(displayImageBase64, 'services');
+      displayImageUrl = await uploadToCloudinary(displayImageBase64, 'services/display');
     } else if (typeof displayImage === 'string') {
       displayImageUrl = displayImage; // Keep existing URL if provided
     }
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
       additionalImages.map(async (item) => {
         if (item instanceof File) {
           const base64 = await fileToBase64(item);
-          return await uploadToCloudinary(base64, 'services');
+          return await uploadToCloudinary(base64, 'services/additional');
         }
         return item as string; // Keep existing URL if provided
       })
@@ -67,6 +70,8 @@ export async function POST(req: NextRequest) {
       video: video || undefined,
       pdf: pdf || undefined,
       seoKeywords: seoKeywords || undefined,
+      applications: applications || undefined,
+      customSections,
       specifications: [],
       queries: [],
     });
@@ -75,6 +80,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: savedService._id }, { status: 201 });
   } catch (error) {
     console.error('Error creating service:', error);
-    return NextResponse.json({ error: 'Failed to create service' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to create service', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
   }
 }

@@ -1,8 +1,8 @@
-import { Ubuntu } from 'next/font/google';
+import { Ubuntu, Inter } from "next/font/google";
 import Navbar from "@/components/reuseables/navbar/Navbar";
-import "./globals.css";
 import Footer from "@/components/reuseables/footer/Footer";
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer } from "react-toastify";
+import "./globals.css";
 
 export const metadata = {
   title: "MechVacc",
@@ -10,9 +10,16 @@ export const metadata = {
 };
 
 const ubuntu = Ubuntu({
-  weight: ['400', '500', '700'], 
-  subsets: ['latin'], 
-  display: 'swap', 
+  weight: ["300", "400", "500", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-ubuntu",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
 });
 
 interface RootLayoutProps {
@@ -20,19 +27,18 @@ interface RootLayoutProps {
 }
 
 export default function RootLayout({ children }: RootLayoutProps) {
-  
-  // Use environment variable for maintenance mode
-   const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
+  const maintenanceMode = process.env.MAINTENANCE_MODE === "true";
 
   return (
-    <html lang="en">
-      <body className={`${ubuntu.className} antialiased`}>
-        {/* Only show Navbar if not in maintenance mode or not on maintenance page */}
-        { !maintenanceMode && <Navbar />}
-        {children}  
+    <html lang="en" className={`${ubuntu.variable} ${inter.variable}`}>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </head>
+      <body className="font-sans antialiased">
+        {!maintenanceMode && <Navbar />}
+        {children}
         <ToastContainer position="top-right" autoClose={5000} />
-        {/* Only show Footer if not in maintenance mode or not on maintenance page */}
-        { !maintenanceMode && <Footer />}
+        {!maintenanceMode && <Footer />}
       </body>
     </html>
   );

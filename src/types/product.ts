@@ -6,10 +6,14 @@ export interface Specification {
 
 export interface Query {
   title: string;
-  type: 'number' |'string'  ;
+  type: 'number' | 'string';
 }
 
-// types/product.ts
+export interface CustomSection {
+     title: string;
+     content: string;
+   }
+
 export interface Product {
   _id: string;
   name: string;
@@ -23,6 +27,8 @@ export interface Product {
   seoKeywords?: string;
   description?: string;
   priceLabel?: string;
+  applications?: string; // New field for applications
+  customSections?: CustomSection[];
   specifications?: Array<{
     title: string;
     value: string;

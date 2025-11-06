@@ -1,11 +1,14 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Product } from "@/types/product";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 
 // Custom type guard for FileList
 const isFileList = (value: unknown): value is FileList =>
@@ -13,6 +16,18 @@ const isFileList = (value: unknown): value is FileList =>
   typeof value === "object" &&
   "length" in value &&
   "item" in value;
+
+// Schema for custom sections
+const customSectionSchema = z.object({
+  title: z.string().min(1, "Section title is required"),
+  content: z
+    .string()
+    .min(1, "Content is required")
+    .refine(
+      (value) => value.includes("#") || value.includes("##"),
+      "Content must include at least one heading (# or ##) for SEO"
+    ),
+});
 
 // Define the form schema
 const createSchema = () =>
@@ -24,7 +39,10 @@ const createSchema = () =>
     displayImage: z
       .unknown()
       .refine(isFileList, "Display image must be a file")
-      .refine((files: FileList) => files.length === 1, "Display image is required")
+      .refine(
+        (files: FileList) => files.length === 1,
+        "Display image is required"
+      )
       .transform((files: FileList) => files[0] as File),
     additionalImages: z
       .array(
@@ -34,13 +52,15 @@ const createSchema = () =>
           .transform((files: FileList) => (files.length > 0 ? files[0] : null))
       )
       .optional()
-      .transform((files) => files?.filter((file): file is File => file !== null) ?? []),
+      .transform(
+        (files) => files?.filter((file): file is File => file !== null) ?? []
+      ),
     video: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     pdf: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     seoKeywords: z.string().optional(),
+    customSections: z.array(customSectionSchema).optional(),
   });
 
-// Define the form data type based on the schema
 type FormData = z.infer<ReturnType<typeof createSchema>>;
 
 interface Step1Props {
@@ -50,8 +70,12 @@ interface Step1Props {
 export default function Step1({ onNext }: Step1Props) {
   const schema = createSchema();
   const [isLoading, setIsLoading] = useState(false);
-  const [displayImagePreview, setDisplayImagePreview] = useState<string | null>(null);
-  const [additionalImagePreviews, setAdditionalImagePreviews] = useState<string[]>([]);
+  const [displayImagePreview, setDisplayImagePreview] = useState<string | null>(
+    null
+  );
+  const [additionalImagePreviews, setAdditionalImagePreviews] = useState<
+    string[]
+  >([]);
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -60,6 +84,7 @@ export default function Step1({ onNext }: Step1Props) {
     handleSubmit,
     formState: { errors },
     watch,
+    control,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     mode: "onBlur",
@@ -73,7 +98,17 @@ export default function Step1({ onNext }: Step1Props) {
       video: "",
       pdf: "",
       seoKeywords: "",
+      customSections: [],
     },
+  });
+
+  const {
+    fields: sectionFields,
+    append: appendSection,
+    remove: removeSection,
+  } = useFieldArray({
+    control,
+    name: "customSections",
   });
 
   // Watch the name field for real-time validation
@@ -93,10 +128,8 @@ export default function Step1({ onNext }: Step1Props) {
           `/api/products/check-name?name=${encodeURIComponent(productName)}`
         );
         const data = await response.json();
-        
         if (data.exists) {
           setNameError("Product name must be unique");
-          // Show alert
           alert("Product name must be unique");
         } else {
           setNameError(null);
@@ -109,20 +142,23 @@ export default function Step1({ onNext }: Step1Props) {
       }
     };
 
-    // Use debounce to prevent too many API calls
     const timeoutId = setTimeout(() => {
       checkNameUniqueness();
-    }, 500); // 500ms debounce
+    }, 500);
 
-    // Cleanup timeout on component unmount or when productName changes
     return () => clearTimeout(timeoutId);
   }, [productName]);
 
   // Manage additional image fields
-  const [additionalImageFields, setAdditionalImageFields] = useState<{ id: string }[]>([]);
+  const [additionalImageFields, setAdditionalImageFields] = useState<
+    { id: string }[]
+  >([]);
 
   const addImageField = () => {
-    setAdditionalImageFields([...additionalImageFields, { id: `img-${Date.now()}` }]);
+    setAdditionalImageFields([
+      ...additionalImageFields,
+      { id: `img-${Date.now()}` },
+    ]);
   };
 
   const removeImageField = (index: number) => {
@@ -149,7 +185,9 @@ export default function Step1({ onNext }: Step1Props) {
   const additionalImagesField = watch("additionalImages");
   useEffect(() => {
     if (additionalImagesField && additionalImagesField.length > 0) {
-      const previews = additionalImagesField.map((file) => URL.createObjectURL(file));
+      const previews = additionalImagesField.map((file) =>
+        URL.createObjectURL(file)
+      );
       setAdditionalImagePreviews(previews);
       return () => previews.forEach((url) => URL.revokeObjectURL(url));
     } else {
@@ -161,12 +199,11 @@ export default function Step1({ onNext }: Step1Props) {
   const pdfUrl = watch("pdf");
 
   const onSubmit = async (data: FormData) => {
-    // Final uniqueness check before submission
     if (nameError) {
       alert("Please choose a unique product name before proceeding.");
       return;
     }
-    
+
     setIsLoading(true);
     const formData = new FormData();
     formData.append("name", data.name);
@@ -175,22 +212,28 @@ export default function Step1({ onNext }: Step1Props) {
     formData.append("description", data.description || "");
     formData.append("displayImage", data.displayImage);
     if (data.additionalImages && data.additionalImages.length > 0) {
-      data.additionalImages.forEach((file) => formData.append("additionalImages", file));
+      data.additionalImages.forEach((file) =>
+        formData.append("additionalImages", file)
+      );
     }
     formData.append("video", data.video || "");
     formData.append("pdf", data.pdf || "");
     formData.append("seoKeywords", data.seoKeywords || "");
+    formData.append(
+      "customSections",
+      JSON.stringify(data.customSections || [])
+    );
 
     try {
       const res = await fetch("/api/products/step1", {
         method: "POST",
         body: formData,
       });
-      
+
       if (!res.ok) {
         throw new Error("Failed to save product");
       }
-      
+
       const result = await res.json();
 
       const productData: Partial<Product> = {
@@ -203,6 +246,7 @@ export default function Step1({ onNext }: Step1Props) {
         video: data.video,
         pdf: data.pdf,
         seoKeywords: data.seoKeywords,
+        customSections: data.customSections,
       };
 
       onNext(result.id, productData);
@@ -215,8 +259,13 @@ export default function Step1({ onNext }: Step1Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 p-2 bg-white rounded-2xl">
-      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">Product Details</h2>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-8 p-2 bg-white rounded-2xl"
+    >
+      <h2 className="text-3xl font-bold text-gray-800 border-b pb-4">
+        Product Details
+      </h2>
 
       {isLoading && (
         <div className="flex items-center justify-center p-4 bg-gray-100 rounded-lg">
@@ -281,7 +330,9 @@ export default function Step1({ onNext }: Step1Props) {
               </div>
             )}
           </div>
-          {nameError && <p className="text-red-500 text-base mt-1">{nameError}</p>}
+          {nameError && (
+            <p className="text-red-500 text-base mt-1">{nameError}</p>
+          )}
           {errors.name && !nameError && (
             <p className="text-red-500 text-base mt-1">{errors.name.message}</p>
           )}
@@ -298,7 +349,9 @@ export default function Step1({ onNext }: Step1Props) {
             disabled={isLoading}
           />
           {errors.displayTitle && (
-            <p className="text-red-500 text-base mt-1">{errors.displayTitle.message}</p>
+            <p className="text-red-500 text-base mt-1">
+              {errors.displayTitle.message}
+            </p>
           )}
         </div>
 
@@ -313,13 +366,15 @@ export default function Step1({ onNext }: Step1Props) {
             disabled={isLoading}
           />
           {errors.group && (
-            <p className="text-red-500 text-base mt-1">{errors.group.message}</p>
+            <p className="text-red-500 text-base mt-1">
+              {errors.group.message}
+            </p>
           )}
         </div>
 
         <div>
           <label className="block text-base font-medium text-gray-700 mb-1">
-            Product Description
+            Description
           </label>
           <textarea
             {...register("description")}
@@ -329,9 +384,203 @@ export default function Step1({ onNext }: Step1Props) {
             disabled={isLoading}
           />
           {errors.description && (
-            <p className="text-red-500 text-base mt-1">{errors.description.message}</p>
+            <p className="text-red-500 text-base mt-1">
+              {errors.description.message}
+            </p>
           )}
         </div>
+      </div>
+
+      {/* Custom Sections */}
+      <div>
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">
+          Custom Sections
+        </h3>
+        {sectionFields.map((section, index) => (
+          <div
+            key={section.id}
+            className="mb-6 p-4 border border-gray-300 rounded-lg shadow-sm"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-lg font-medium text-gray-800">
+                Section {index + 1}
+              </h4>
+              <button
+                type="button"
+                onClick={() => removeSection(index)}
+                className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                disabled={isLoading}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Section Title
+                </label>
+                <input
+                  {...register(`customSections.${index}.title`)}
+                  placeholder="e.g., Key Features, Applications, How It Works"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all"
+                  disabled={isLoading}
+                />
+                {errors.customSections?.[index]?.title && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.customSections[index].title?.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Content (Markdown)
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <textarea
+                    {...register(`customSections.${index}.content`)}
+                    placeholder={`# Section Heading\n- Feature 1\n- Feature 2\n\nUse headings (#, ##) and lists for SEO-friendly content.`}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent transition-all font-mono text-sm"
+                    rows={6}
+                    disabled={isLoading}
+                  />
+                  <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Preview
+                    </h4>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeSanitize]}
+                      components={{
+                        p: ({ node, ...props }) => (
+                          <p className="text-gray-700 mb-2" {...props} />
+                        ),
+                        h1: ({ node, ...props }) => (
+                          <h1
+                            className="text-2xl font-bold text-gray-800 mt-6 mb-3"
+                            {...props}
+                          />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2
+                            className="text-xl font-semibold text-gray-800 mt-5 mb-2"
+                            {...props}
+                          />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3
+                            className="text-lg font-semibold text-gray-800 mt-4 mb-2"
+                            {...props}
+                          />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul
+                            className="list-disc list-inside text-gray-700 mb-2"
+                            {...props}
+                          />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol
+                            className="list-decimal list-inside text-gray-700 mb-2"
+                            {...props}
+                          />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li className="text-gray-700 mb-1" {...props} />
+                        ),
+                        a: ({ node, ...props }) => (
+                          <a
+                            className="text-[var(--color-green)] hover:underline"
+                            {...props}
+                          />
+                        ),
+                        // Table styling components
+                        table: ({ node, ...props }) => (
+                          <table
+                            className="min-w-full border-collapse border border-gray-300 mt-4 mb-4 text-sm"
+                            {...props}
+                          />
+                        ),
+                        thead: ({ node, ...props }) => (
+                          <thead className="bg-gray-50" {...props} />
+                        ),
+                        th: ({ node, ...props }) => (
+                          <th
+                            className="border border-gray-300 px-3 py-2 bg-gray-100 font-semibold text-left text-gray-800"
+                            {...props}
+                          />
+                        ),
+                        td: ({ node, ...props }) => (
+                          <td
+                            className="border border-gray-300 px-3 py-2 text-gray-700"
+                            {...props}
+                          />
+                        ),
+                        tr: ({ node, ...props }) => (
+                          <tr className="hover:bg-gray-50" {...props} />
+                        ),
+                        // Code styling
+                        code: ({ node, ...props }) => {
+                          const isInline =
+                            !props.className?.includes("language-");
+                          return isInline ? (
+                            <code
+                              className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-gray-800"
+                              {...props}
+                            />
+                          ) : (
+                            <code
+                              className="block bg-gray-100 p-3 rounded text-sm font-mono text-gray-800 overflow-x-auto"
+                              {...props}
+                            />
+                          );
+                        },
+                        pre: ({ node, ...props }) => (
+                          <pre
+                            className="bg-gray-100 p-3 rounded text-sm font-mono text-gray-800 overflow-x-auto mb-4"
+                            {...props}
+                          />
+                        ),
+                        // Blockquote styling
+                        blockquote: ({ node, ...props }) => (
+                          <blockquote
+                            className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-4"
+                            {...props}
+                          />
+                        ),
+                        // Strong and emphasis
+                        strong: ({ node, ...props }) => (
+                          <strong
+                            className="font-semibold text-gray-800"
+                            {...props}
+                          />
+                        ),
+                        em: ({ node, ...props }) => (
+                          <em className="italic text-gray-700" {...props} />
+                        ),
+                      }}
+                    >
+                      {watch(`customSections.${index}.content`) ||
+                        "Enter Markdown to see preview"}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+                {errors.customSections?.[index]?.content && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.customSections[index].content?.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => appendSection({ title: "", content: "" })}
+          className="mt-2 inline-flex items-center px-4 py-2 border border-[var(--color-green)] text-base font-medium rounded-full text-[var(--color-green)] hover:bg-[var(--color-green)] hover:text-white transition-all"
+          disabled={isLoading}
+        >
+          + Add Section
+        </button>
       </div>
 
       <div>
@@ -346,7 +595,9 @@ export default function Step1({ onNext }: Step1Props) {
           disabled={isLoading}
         />
         {errors.displayImage?.message && (
-          <p className="text-red-500 text-base mt-1">{errors.displayImage.message}</p>
+          <p className="text-red-500 text-base mt-1">
+            {errors.displayImage.message}
+          </p>
         )}
         {displayImagePreview && (
           <Image
@@ -412,7 +663,9 @@ export default function Step1({ onNext }: Step1Props) {
           disabled={isLoading}
         />
         {errors.seoKeywords && (
-          <p className="text-red-500 text-base mt-1">{errors.seoKeywords.message}</p>
+          <p className="text-red-500 text-base mt-1">
+            {errors.seoKeywords.message}
+          </p>
         )}
         <p className="text-gray-500 text-base mt-2">
           e.g., product, sale, discount
