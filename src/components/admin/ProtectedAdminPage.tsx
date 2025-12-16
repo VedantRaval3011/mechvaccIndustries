@@ -1,7 +1,9 @@
+"use client";
+
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, Variants, Easing } from "framer-motion";
 
 function ProtectedAdminPage() {
   const { data: session, status } = useSession();
@@ -14,32 +16,33 @@ function ProtectedAdminPage() {
   }, [status, router]);
 
   // Animation variants
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0, y: 70 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 1, ease: "easeOut" },
+      transition: { duration: 1, ease: [0.23, 1, 0.32, 1] as Easing },
     },
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, scale: 0.9 },
     visible: {
       opacity: 1,
       scale: 1,
-      transition: { duration: 0.7, ease: "easeOut" },
+      transition: { duration: 0.7, ease: [0.23, 1, 0.32, 1] as Easing },
     },
   };
 
-  const floatVariants = {
+  const floatVariants: Variants = {
+    initial: {},
     animate: {
       y: [0, -25, 0],
       rotate: [0, 10, 0],
       transition: {
         duration: 5,
         repeat: Infinity,
-        ease: "easeInOut",
+        ease: [0.42, 0, 0.58, 1] as Easing,
       },
     },
   };
@@ -50,7 +53,11 @@ function ProtectedAdminPage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1.1 }}
-          transition={{ duration: 0.7, repeat: Infinity, repeatType: "reverse" }}
+          transition={{
+            duration: 0.7,
+            repeat: Infinity,
+            repeatType: "reverse",
+          }}
           className="text-green-400 font-mono text-xl sm:text-2xl md:text-3xl tracking-widest"
         >
           System Booting...
@@ -137,7 +144,11 @@ function ProtectedAdminPage() {
             <motion.span
               className="text-green-400 font-medium"
               animate={{ scale: [1, 1.05, 1], opacity: [1, 0.85, 1] }}
-              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
             >
               {session.user?.name}
             </motion.span>
@@ -147,7 +158,8 @@ function ProtectedAdminPage() {
             variants={itemVariants}
             className="text-base sm:text-lg md:text-xl text-gray-600 tracking-wide"
           >
-            Your dashboard is ready. Take charge of operations and shape the future.
+            Your dashboard is ready. Take charge of operations and shape the
+            future.
           </motion.p>
         </motion.div>
       </div>

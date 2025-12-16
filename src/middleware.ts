@@ -1,42 +1,55 @@
-// middleware.ts
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  const isMaintenanceMode = process.env.MAINTENANCE_MODE === "true";
+  const { pathname } = request.nextUrl;
 
-  // 1️⃣ Skip maintenance logic for system assets and API
-  if (
-    !isMaintenanceMode ||
-    process.env.NODE_ENV !== "production" ||
-    request.nextUrl.pathname.startsWith("/api") ||
-    request.nextUrl.pathname.startsWith("/_next") ||
-    request.nextUrl.pathname === "/maintenance"
-  ) {
-    // Proceed to authentication check below
-  } else {
-    // If in maintenance mode, rewrite all pages to /maintenance
-    return NextResponse.rewrite(new URL("/maintenance", request.url));
+  // Define protected routes that require authentication
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isSignInPage = pathname === "/admin/signin";
+  const isErrorPage = pathname === "/admin/error";
+
+  // Allow access to signin and error pages without authentication
+  if (isSignInPage || isErrorPage) {
+    return NextResponse.next();
   }
 
-  // 2️⃣ Protect /admin routes
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
-  if (isAdminRoute && !request.nextUrl.pathname.startsWith("/admin/signin")) {
-    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  // Check if the user is authenticated for admin routes
+  if (isAdminRoute) {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
 
+    // If not authenticated, redirect to sign-in page
     if (!token) {
-      const signinUrl = new URL("/admin/signin", request.url);
-      // Preserve redirect back to original page
-      signinUrl.searchParams.set("callbackUrl", request.url);
-      return NextResponse.redirect(signinUrl);
+      const signInUrl = new URL("/admin/signin", request.url);
+      signInUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(signInUrl);
+    }
+
+    // Optional: Check if the user's email is in the allowed list
+    const allowedEmails = process.env.ADMIN_EMAILS?.split(",") || [];
+    if (token.email && !allowedEmails.includes(token.email as string)) {
+      // User is authenticated but not authorized - redirect to error page
+      const errorUrl = new URL("/admin/error?error=AccessDenied", request.url);
+      return NextResponse.redirect(errorUrl);
     }
   }
 
-  // 3️⃣ Default: continue normally
   return NextResponse.next();
 }
 
+// Configure which routes the middleware should run on
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Match all admin routes except:
+     * - api routes (handled separately)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/admin/:path*",
+  ],
 };

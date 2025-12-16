@@ -2,7 +2,7 @@
 
 import { Mail, MapPinHouse, PhoneCall } from "lucide-react";
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, Variants, Easing } from "framer-motion";
 import { toast } from "react-toastify";
 
 interface FormData {
@@ -32,6 +32,7 @@ export default function EnquiryPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ✅ Handles text inputs and textarea updates
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -41,6 +42,7 @@ export default function EnquiryPage() {
     }));
   };
 
+  // ✅ Handles country selection (resets contact field)
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFormData((prev) => ({
       ...prev,
@@ -49,10 +51,17 @@ export default function EnquiryPage() {
     }));
   };
 
+  // ✅ Handles form submission
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsSubmitting(true);
 
+    // Basic client-side validation
+    if (!formData.firstname || !formData.lastname || !formData.email || !formData.message) {
+      toast.error("Please fill out all required fields.");
+      return;
+    }
+
+    setIsSubmitting(true);
     const processingToastId = toast.info("Processing your enquiry...", {
       autoClose: false,
     });
@@ -60,9 +69,7 @@ export default function EnquiryPage() {
     try {
       const res = await fetch("/api/enquiry", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
@@ -76,21 +83,24 @@ export default function EnquiryPage() {
           firstname: "",
           lastname: "",
           email: "",
-          message: "",
           contact: "",
+          message: "",
           country: "",
         });
       } else {
         const errorData = await res.json();
         toast.update(processingToastId, {
-          render: `Submission error: ${errorData.message}`,
+          render: `Submission error: ${errorData.message || "Server error"}`,
           type: "error",
           autoClose: 5000,
         });
       }
     } catch (error) {
       toast.update(processingToastId, {
-        render: `Submission failed: ${error instanceof Error ? error.message : "An unexpected error occurred"}`,
+        render:
+          error instanceof Error
+            ? `Submission failed: ${error.message}`
+            : "An unexpected error occurred.",
         type: "error",
         autoClose: 5000,
       });
@@ -99,7 +109,8 @@ export default function EnquiryPage() {
     }
   };
 
-  const containerVariants = {
+  // ✅ Animation variants
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -110,14 +121,14 @@ export default function EnquiryPage() {
     },
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
+  const itemVariants: Variants = {
+    hidden: { y: 25, opacity: 0 },
     visible: {
       y: 0,
       opacity: 1,
       transition: {
         duration: 0.5,
-        ease: "easeOut",
+        ease: [0.25, 0.1, 0.25, 1] as Easing,
       },
     },
   };
@@ -131,7 +142,7 @@ export default function EnquiryPage() {
         className="max-w-7xl mx-auto px-6 lg:px-12"
       >
         <div className="grid lg:grid-cols-5 gap-12 lg:gap-16">
-          {/* Contact Info - 2 columns */}
+          {/* Contact Info Section */}
           <motion.div variants={itemVariants} className="lg:col-span-2 space-y-8">
             <div>
               <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 tracking-tight">
@@ -149,15 +160,15 @@ export default function EnquiryPage() {
                   label: "Address",
                   text: "Sector 1055, Lorem Quadrant, Elk Groot System",
                 },
-                { 
-                  icon: PhoneCall, 
+                {
+                  icon: PhoneCall,
                   label: "Phone",
-                  text: "+1 234 678 9108 99" 
+                  text: "+1 234 678 9108 99",
                 },
-                { 
-                  icon: Mail, 
+                {
+                  icon: Mail,
                   label: "Email",
-                  text: "contact@mechvacc.com" 
+                  text: "contact@mechvacc.com",
                 },
               ].map((item, index) => (
                 <motion.div
@@ -166,10 +177,15 @@ export default function EnquiryPage() {
                   className="flex items-start gap-4 group"
                 >
                   <div className="flex-shrink-0 w-12 h-12 bg-[var(--color-green)]/10 rounded-lg flex items-center justify-center group-hover:bg-[var(--color-green)]/20 transition-colors duration-300">
-                    <item.icon className="text-[var(--color-green)] w-5 h-5" strokeWidth={2} />
+                    <item.icon
+                      className="text-[var(--color-green)] w-5 h-5"
+                      strokeWidth={2}
+                    />
                   </div>
                   <div className="flex-1 pt-1">
-                    <p className="text-sm font-medium text-gray-500 mb-1">{item.label}</p>
+                    <p className="text-sm font-medium text-gray-500 mb-1">
+                      {item.label}
+                    </p>
                     <p className="text-gray-900 font-medium">{item.text}</p>
                   </div>
                 </motion.div>
@@ -177,7 +193,7 @@ export default function EnquiryPage() {
             </div>
           </motion.div>
 
-          {/* Form - 3 columns */}
+          {/* Enquiry Form Section */}
           <motion.div
             variants={itemVariants}
             className="lg:col-span-3 bg-white rounded-2xl p-8 lg:p-10 shadow-sm border border-gray-200"
@@ -187,12 +203,15 @@ export default function EnquiryPage() {
                 {["firstname", "lastname"].map((field) => (
                   <div key={field}>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {field === "firstname" ? "First Name" : "Last Name"} <span className="text-red-500">*</span>
+                      {field === "firstname" ? "First Name" : "Last Name"}{" "}
+                      <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       name={field}
-                      placeholder={`Enter your ${field === "firstname" ? "first" : "last"} name`}
+                      placeholder={`Enter your ${
+                        field === "firstname" ? "first" : "last"
+                      } name`}
                       className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200"
                       required
                       value={formData[field as keyof FormData]}
@@ -218,7 +237,7 @@ export default function EnquiryPage() {
               </div>
 
               <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Country <span className="text-red-500">*</span>
                   </label>
@@ -237,6 +256,7 @@ export default function EnquiryPage() {
                     ))}
                   </select>
                 </div>
+
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number <span className="text-red-500">*</span>
@@ -245,11 +265,11 @@ export default function EnquiryPage() {
                     type="tel"
                     name="contact"
                     placeholder="Enter your phone number"
-                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200"
+                    pattern="[0-9]*"
                     required
                     value={formData.contact}
                     onChange={handleChange}
-                    pattern="[0-9]*"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:border-transparent text-gray-900 placeholder-gray-400 transition-all duration-200"
                   />
                 </div>
               </div>
