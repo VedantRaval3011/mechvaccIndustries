@@ -115,9 +115,8 @@ const StaticCarousel: React.FC<{
         {duplicatedServices.map((item, idx) => (
           <div
             key={`${item._id}-${idx}`}
-            className={`flex-shrink-0 ${
-              idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
-            }`}
+            className={`flex-shrink-0 ${idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
+              }`}
           >
             {idx % 2 === 0 ? (
               <Link href={`/services/${item._id}`}>
@@ -143,8 +142,8 @@ const StaticCarousel: React.FC<{
               </Link>
             ) : (
               <Link href={`/services/${item._id}`}>
-                <div className="bg-white shadow-md rounded-3xl h-[21rem] flex flex-col cursor-pointer transition-transform hover:scale-105">
-                  <div className="h-56 overflow-hidden rounded-t-3xl">
+                <div className="bg-white shadow-md rounded-3xl h-[21rem] flex flex-col cursor-pointer transition-transform hover:scale-105 overflow-hidden">
+                  <div className="h-48 flex-shrink-0 overflow-hidden rounded-t-3xl">
                     <Image
                       src={item.displayImage}
                       width={500}
@@ -155,16 +154,16 @@ const StaticCarousel: React.FC<{
                       loading={idx < 4 ? "eager" : "lazy"}
                     />
                   </div>
-                  <div className="flex items-center p-4">
-                    <div className="flex-grow">
-                      <h2 className="text-xl font-medium mb-2">
+                  <div className="flex items-start p-4 flex-1 overflow-hidden">
+                    <div className="flex-grow min-w-0 overflow-hidden">
+                      <h2 className="text-lg font-semibold mb-1 truncate">
                         {item.displayTitle}
                       </h2>
-                      <p className="text-sm font-bold">
-                        {truncateText(item.description, 120)}
+                      <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
+                        {item.description}
                       </p>
                     </div>
-                    <div className="rounded-full hover:bg-[var(--color-green)] text-[var(--color-green)] hover:text-white bg-grayBg p-2 flex items-center justify-center ml-2">
+                    <div className="rounded-full hover:bg-[var(--color-green)] text-[var(--color-green)] hover:text-white bg-grayBg p-2 flex items-center justify-center ml-3 flex-shrink-0">
                       <ArrowUpRight size={20} />
                     </div>
                   </div>
@@ -328,9 +327,8 @@ const MotionCarousel: React.FC<{
         {duplicatedServices.map((item, idx) => (
           <motion.div
             key={`${item._id}-${idx}`}
-            className={`flex-shrink-0 ${
-              idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
-            }`}
+            className={`flex-shrink-0 ${idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
+              }`}
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.3 }}
           >
@@ -358,8 +356,8 @@ const MotionCarousel: React.FC<{
               </Link>
             ) : (
               <Link href={`/services/${item._id}`}>
-                <div className="bg-white shadow-md rounded-3xl h-[21rem] flex flex-col cursor-pointer">
-                  <div className="h-56 overflow-hidden rounded-t-3xl">
+                <div className="bg-white shadow-md rounded-3xl h-[21rem] flex flex-col cursor-pointer overflow-hidden">
+                  <div className="h-48 flex-shrink-0 overflow-hidden rounded-t-3xl">
                     <Image
                       src={item.displayImage}
                       width={500}
@@ -370,16 +368,16 @@ const MotionCarousel: React.FC<{
                       loading={idx < 4 ? "eager" : "lazy"}
                     />
                   </div>
-                  <div className="flex items-center p-4">
-                    <div className="flex-grow">
-                      <h2 className="text-xl font-medium mb-2">
+                  <div className="flex items-start p-4 flex-1 overflow-hidden">
+                    <div className="flex-grow min-w-0 overflow-hidden">
+                      <h2 className="text-lg font-semibold mb-1 truncate">
                         {item.displayTitle}
                       </h2>
-                      <p className="text-sm font-light">
-                        {truncateText(item.description, 100)}
+                      <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
+                        {item.description}
                       </p>
                     </div>
-                    <div className="rounded-full hover:bg-[var(--color-green)] text-[var(--color-green)] hover:text-white bg-grayBg p-2 flex items-center justify-center ml-2">
+                    <div className="rounded-full hover:bg-[var(--color-green)] text-[var(--color-green)] hover:text-white bg-grayBg p-2 flex items-center justify-center ml-3 flex-shrink-0">
                       <ArrowUpRight size={20} />
                     </div>
                   </div>
@@ -421,9 +419,8 @@ const FeaturedServices: React.FC = () => {
       {[...Array(6)].map((_, idx) => (
         <div
           key={idx}
-          className={`flex-shrink-0 ${
-            idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
-          }`}
+          className={`flex-shrink-0 ${idx % 2 === 0 ? "w-[27.5rem]" : "w-[18rem]"
+            }`}
         >
           {idx % 2 === 0 ? (
             <div className="h-80 rounded-xl overflow-hidden bg-gray-200 animate-pulse">
