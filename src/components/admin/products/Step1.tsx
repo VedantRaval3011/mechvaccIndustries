@@ -9,6 +9,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { uploadFileToCloudinary } from "@/lib/upload-client";
 
 // Custom type guard for FileList
 const isFileList = (value: unknown): value is FileList =>
@@ -210,21 +211,38 @@ export default function Step1({ onNext }: Step1Props) {
     formData.append("displayTitle", data.displayTitle);
     formData.append("group", data.group);
     formData.append("description", data.description || "");
-    formData.append("displayImage", data.displayImage);
-    if (data.additionalImages && data.additionalImages.length > 0) {
-      data.additionalImages.forEach((file) =>
-        formData.append("additionalImages", file)
-      );
-    }
-    formData.append("video", data.video || "");
-    formData.append("pdf", data.pdf || "");
-    formData.append("seoKeywords", data.seoKeywords || "");
-    formData.append(
-      "customSections",
-      JSON.stringify(data.customSections || [])
-    );
-
     try {
+      // 1. Upload images directly to Cloudinary from the client
+      let displayImageUrl = "";
+      if (data.displayImage instanceof File) {
+        displayImageUrl = await uploadFileToCloudinary(data.displayImage, "products/display");
+      }
+
+      const additionalImageUrls: string[] = [];
+      if (data.additionalImages && data.additionalImages.length > 0) {
+        for (const file of data.additionalImages) {
+          if (file instanceof File) {
+            const url = await uploadFileToCloudinary(file, "products/additional");
+            additionalImageUrls.push(url);
+          }
+        }
+      }
+
+      // 2. Append URLs instead of File objects to Next.js API
+      formData.append("displayImage", displayImageUrl);
+      if (additionalImageUrls.length > 0) {
+        additionalImageUrls.forEach((url) =>
+          formData.append("additionalImages", url)
+        );
+      }
+      formData.append("video", data.video || "");
+      formData.append("pdf", data.pdf || "");
+      formData.append("seoKeywords", data.seoKeywords || "");
+      formData.append(
+        "customSections",
+        JSON.stringify(data.customSections || [])
+      );
+
       const res = await fetch("/api/products/step1", {
         method: "POST",
         body: formData,

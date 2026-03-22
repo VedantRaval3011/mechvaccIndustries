@@ -9,6 +9,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { uploadFileToCloudinary } from "@/lib/upload-client";
 
 interface ServiceWithCallbacks extends Service {
   onUpdate?: (updatedService: Service) => void;
@@ -299,19 +300,23 @@ export default function ServiceUpdateForm({
       formData.append("group", data.group);
       formData.append("description", data.description || "");
       formData.append("applications", data.applications || "");
+      // 1. Upload new display image directly to Cloudinary if it's a File
+      let finalDisplayImageUrl = service.displayImage || "";
       if (data.displayImage instanceof File) {
-        formData.append("displayImage", data.displayImage);
-      } else {
-        formData.append("displayImage", service.displayImage || "");
+        finalDisplayImageUrl = await uploadFileToCloudinary(data.displayImage, "services/display");
       }
+      formData.append("displayImage", finalDisplayImageUrl);
+
+      // 2. Upload new additional images directly to Cloudinary
       if (data.additionalImages && data.additionalImages.length > 0) {
-        data.additionalImages.forEach((item) => {
+        for (const item of data.additionalImages) {
           if (item.file instanceof File) {
-            formData.append("additionalImages", item.file);
+            const uploadedUrl = await uploadFileToCloudinary(item.file, "services/additional");
+            formData.append("additionalImages", uploadedUrl);
           } else if (item.url) {
             formData.append("additionalImages", item.url);
           }
-        });
+        }
       }
       formData.append("video", data.video ?? "");
       formData.append("pdf", data.pdf ?? "");

@@ -9,6 +9,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { uploadFileToCloudinary } from "@/lib/upload-client";
 
 // Custom type guard for FileList
 const isFileList = (value: unknown): value is FileList =>
@@ -110,14 +111,27 @@ export default function AddService({ onNext }: AddServiceProps) {
     name: "customSections",
   });
 
-  const {
-    fields: additionalImageFields,
-    append: appendImage,
-    remove: removeImage,
-  } = useFieldArray<FormData, "additionalImages">({
-    control,
-    name: "additionalImages",
-  });
+  // Manage additional image fields
+  const [additionalImageFields, setAdditionalImageFields] = useState<
+    { id: string }[]
+  >([]);
+
+  const addImageField = () => {
+    setAdditionalImageFields([
+      ...additionalImageFields,
+      { id: `img-${Date.now()}` },
+    ]);
+  };
+
+  const removeImageField = (index: number) => {
+    const newFields = [...additionalImageFields];
+    newFields.splice(index, 1);
+    setAdditionalImageFields(newFields);
+
+    const newPreviews = [...additionalImagePreviews];
+    newPreviews.splice(index, 1);
+    setAdditionalImagePreviews(newPreviews);
+  };
 
   // Watch the name field for real-time validation
   const serviceName = watch("name");
@@ -196,21 +210,38 @@ export default function AddService({ onNext }: AddServiceProps) {
     formData.append("displayTitle", data.displayTitle);
     formData.append("group", data.group);
     formData.append("description", data.description || "");
-    formData.append("displayImage", data.displayImage);
-    if (data.additionalImages && data.additionalImages.length > 0) {
-      data.additionalImages.forEach((file) =>
-        formData.append("additionalImages", file)
-      );
-    }
-    formData.append("video", data.video || "");
-    formData.append("pdf", data.pdf || "");
-    formData.append("seoKeywords", data.seoKeywords || "");
-    formData.append(
-      "customSections",
-      JSON.stringify(data.customSections || [])
-    );
-
     try {
+      // 1. Upload images directly to Cloudinary from the client
+      let displayImageUrl = "";
+      if (data.displayImage instanceof File) {
+        displayImageUrl = await uploadFileToCloudinary(data.displayImage, "services/display");
+      }
+
+      const additionalImageUrls: string[] = [];
+      if (data.additionalImages && data.additionalImages.length > 0) {
+        for (const file of data.additionalImages) {
+          if (file instanceof File) {
+            const url = await uploadFileToCloudinary(file, "services/additional");
+            additionalImageUrls.push(url);
+          }
+        }
+      }
+
+      // 2. Append URLs instead of File objects to Next.js API
+      formData.append("displayImage", displayImageUrl);
+      if (additionalImageUrls.length > 0) {
+        additionalImageUrls.forEach((url) =>
+          formData.append("additionalImages", url)
+        );
+      }
+      formData.append("video", data.video || "");
+      formData.append("pdf", data.pdf || "");
+      formData.append("seoKeywords", data.seoKeywords || "");
+      formData.append(
+        "customSections",
+        JSON.stringify(data.customSections || [])
+      );
+
       const res = await fetch("/api/services/step1", {
         method: "POST",
         body: formData,
@@ -609,7 +640,7 @@ export default function AddService({ onNext }: AddServiceProps) {
             />
             <button
               type="button"
-              onClick={() => removeImage(index)}
+              onClick={() => removeImageField(index)}
               className="p-2 text-red-500 hover:text-red-700 transition-colors"
               disabled={isLoading}
             >
@@ -628,7 +659,7 @@ export default function AddService({ onNext }: AddServiceProps) {
         ))}
         <button
           type="button"
-          onClick={() => appendImage(null)}
+          onClick={addImageField}
           className="mt-2 inline-flex items-center px-4 py-2 border border-[var(--color-green)] text-sm font-medium rounded-full text-[var(--color-green)] hover:bg-[var(--color-green)] hover:text-white transition-all"
           disabled={isLoading}
         >
